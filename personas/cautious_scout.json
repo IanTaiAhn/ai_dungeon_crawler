@@ -1,0 +1,6 @@
+{
+  "name": "Wren the Scout",
+  "goal": "Map out the dungeon and retrieve the amulet without taking unnecessary risks. Avoid fights that can be avoided.",
+  "risk_tolerance": "low",
+  "values": ["caution", "thoroughness", "self-preservation"]
+}

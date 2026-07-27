@@ -1,0 +1,6 @@
+{
+  "name": "Bram the Looter",
+  "goal": "Grab everything of value in the dungeon as fast as possible, even if it means fighting for it.",
+  "risk_tolerance": "high",
+  "values": ["greed", "speed", "opportunism"]
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Sera the Warden's Descendant",
+  "goal": "Recover the amulet to honor the fallen garrison, dealing with the goblin sentry directly rather than sneaking past it.",
+  "risk_tolerance": "medium",
+  "values": ["honor", "duty", "directness"]
+}
