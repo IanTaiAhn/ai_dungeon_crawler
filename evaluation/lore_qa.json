@@ -1,0 +1,26 @@
+[
+  {
+    "question": "Who sealed the amulet away before the Ashfall?",
+    "expected_keywords": ["paymaster", "sealed"]
+  },
+  {
+    "question": "What faction lives in the ruins of the outpost now?",
+    "expected_keywords": ["green marches", "goblin"]
+  },
+  {
+    "question": "What event destroyed the Sunken Outpost's garrison?",
+    "expected_keywords": ["ashfall"]
+  },
+  {
+    "question": "Will the goblin in the guard room chase a fleeing adventurer?",
+    "expected_keywords": ["territorial", "chase"]
+  },
+  {
+    "question": "Who still considers the amulet theirs by right?",
+    "expected_keywords": ["wardens"]
+  },
+  {
+    "question": "What is resting on a pedestal in the treasure room?",
+    "expected_keywords": ["amulet", "pedestal"]
+  }
+]

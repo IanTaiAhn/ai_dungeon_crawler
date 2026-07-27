@@ -14,6 +14,7 @@ dependencies = [
 
 [project.scripts]
 dungeon-crawler = "dungeon_crawler.cli:main"
+dungeon-crawler-eval = "dungeon_crawler.eval_cli:main"
 
 [build-system]
 requires = ["hatchling"]
