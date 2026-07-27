@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import Protocol
 
+from langgraph.types import interrupt
+
 from dungeon_crawler.parser import parse_action
 from dungeon_crawler.schemas import GameState, Intent, PersonaConfig, PlayerAction
 
@@ -70,6 +72,27 @@ class OllamaPlayerAgent:
         action = result if isinstance(result, PlayerAction) else PlayerAction.model_validate(result)
         print(f"> {action.raw_text}")
         return action
+
+
+class InterruptActionProvider:
+    """Pauses via a real LangGraph interrupt() to get the next turn's raw
+    text from outside the process, then parses it exactly like any other
+    typed input. This is what lets a request/response server (the FastAPI
+    wrapper, the MCP tool server) drive the game turn by turn: each external
+    call resumes the paused graph with `Command(resume=raw_text)` instead of
+    the graph blocking on a local `input()` the way HumanActionProvider does.
+    """
+
+    def get_action(self, state: GameState) -> PlayerAction:
+        raw = interrupt(
+            {
+                "awaiting": "player_action",
+                "narration": state.last_narration,
+                "location": state.location,
+                "turn": state.turn_count + 1,
+            }
+        )
+        return parse_action(str(raw))
 
 
 class ScriptedActionProvider:
