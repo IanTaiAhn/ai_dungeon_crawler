@@ -12,11 +12,22 @@ Phase 3 swaps the action source: an ActionProvider decides each turn's
 PlayerAction, whether that's a human typing at a terminal, an autonomous
 persona-driven player agent, or a scripted stand-in for the sandbox/tests.
 
-A single `invoke()` call runs the whole session: intro narration, then a
-loop of get-action -> resolve (deterministic) -> retrieve -> narrate ->
-remember -> check win/lose, repeating until the game ends. `get_action_node`
-blocks on `action_provider` each turn. The checkpointer persists state after
-every node, keyed by thread_id, so a session can be resumed later by
+Phase 4 adds an optional human check-in: when `checkin_every` is set, a real
+LangGraph `interrupt()` pauses the graph before combat actions and every N
+turns otherwise, surfacing the agent's proposed action so a human can
+approve it (resume with anything falsy/"approve") or override it (resume
+with replacement raw text, parsed the same way typed input would be). This
+only matters for an autonomous agent - it's off by default (None) so a
+human already driving every action isn't interrupted on their own choices.
+
+A single `invoke()` call runs the graph until it either ends or hits an
+interrupt; the caller must check the result for `__interrupt__` and, if
+present, call `invoke(Command(resume=...), config)` to continue (see
+`cli.py` for the loop). Turn order: intro, then get-action -> checkin ->
+resolve (deterministic) -> retrieve -> narrate -> remember -> check win/lose,
+repeating until the game ends. The checkpointer persists state after every
+node, keyed by thread_id, so a session can be resumed later (whether picking
+back up after an interrupt or reloading a finished/abandoned save) by
 invoking again with the same thread_id.
 """
 
@@ -26,6 +37,7 @@ from typing import Any
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
+from langgraph.types import interrupt
 
 from dungeon_crawler import scenario
 from dungeon_crawler.agents import ActionProvider
@@ -37,14 +49,20 @@ from dungeon_crawler.game_logic import (
     use_item,
 )
 from dungeon_crawler.llm import Narrator
+from dungeon_crawler.parser import parse_action
 from dungeon_crawler.retrieval import LoreStore
 from dungeon_crawler.schemas import GameState, Intent, PersonaConfig
 
 _RETRIEVAL_K = 3
+_APPROVE_RESPONSES = {"", "approve", "ok", "yes", "y"}
 
 
 def build_graph(
-    narrator: Narrator, action_provider: ActionProvider, checkpointer: Any, lore_store: LoreStore
+    narrator: Narrator,
+    action_provider: ActionProvider,
+    checkpointer: Any,
+    lore_store: LoreStore,
+    checkin_every: int | None = None,
 ) -> CompiledStateGraph:
     def _retrieve_for(state: GameState, extra_query: str = "") -> list[str]:
         room = scenario.DUNGEON[state.location]
@@ -60,6 +78,33 @@ def build_graph(
     def get_action_node(state: GameState) -> dict:
         action = action_provider.get_action(state)
         return {"last_action": action}
+
+    def checkin_node(state: GameState) -> dict:
+        """No-op unless checkin_every is set. When enabled, pauses before
+        combat actions and every `checkin_every` turns otherwise, so a human
+        can approve or override the agent's proposed action.
+        """
+        if checkin_every is None:
+            return {}
+        proposed = state.last_action
+        is_combat = proposed.intent is Intent.ATTACK
+        upcoming_turn = state.turn_count + 1
+        on_schedule = checkin_every > 0 and upcoming_turn % checkin_every == 0
+        if not (is_combat or on_schedule):
+            return {}
+
+        response = interrupt(
+            {
+                "reason": "combat" if is_combat else f"every {checkin_every} turns",
+                "turn": upcoming_turn,
+                "location": state.location,
+                "narration": state.last_narration,
+                "proposed_action": proposed.raw_text,
+            }
+        )
+        if str(response).strip().lower() in _APPROVE_RESPONSES:
+            return {}
+        return {"last_action": parse_action(str(response))}
 
     def resolve_node(state: GameState) -> dict:
         """Runs the deterministic outcome of the last action against a scratch
@@ -174,6 +219,7 @@ def build_graph(
     graph = StateGraph(GameState)
     graph.add_node("intro", intro_node)
     graph.add_node("get_action", get_action_node)
+    graph.add_node("checkin", checkin_node)
     graph.add_node("resolve", resolve_node)
     graph.add_node("retrieve", retrieve_node)
     graph.add_node("narrate", narrate_node)
@@ -182,7 +228,8 @@ def build_graph(
 
     graph.add_edge(START, "intro")
     graph.add_edge("intro", "get_action")
-    graph.add_edge("get_action", "resolve")
+    graph.add_edge("get_action", "checkin")
+    graph.add_edge("checkin", "resolve")
     graph.add_edge("resolve", "retrieve")
     graph.add_edge("retrieve", "narrate")
     graph.add_edge("narrate", "remember")

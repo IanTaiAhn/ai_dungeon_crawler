@@ -1,24 +1,12 @@
-from langgraph.checkpoint.memory import InMemorySaver
-
-from dungeon_crawler.agents import ScriptedActionProvider
-from dungeon_crawler.graph import build_graph, new_game_state
+from dungeon_crawler.graph import new_game_state
 from dungeon_crawler.llm import MockNarrator
 from dungeon_crawler.retrieval import LoreStore, MockEmbedder
 from dungeon_crawler.schemas import PersonaConfig
+from helpers import build_test_graph
 
 
-def _run(script, thread_id="t", narrator=None, lore_store=None, persona=None):
-    """`script` is a list of raw text commands - ScriptedActionProvider parses
-    them the same way a human's typed input would be, then falls back to
-    "wait" once exhausted (a script shorter than the session length must not
-    exhaust the underlying iterator, since StopIteration raised inside a
-    LangGraph node surfaces as a RuntimeError per PEP 479). Standing in for an
-    OllamaPlayerAgent lets these tests exercise the persona-driven wiring
-    without needing a real model.
-    """
-    narrator = narrator or MockNarrator()
-    lore_store = lore_store or LoreStore(MockEmbedder())
-    graph = build_graph(narrator, ScriptedActionProvider(script), InMemorySaver(), lore_store)
+def _run(script, thread_id="t", narrator=None, lore_store=None, persona=None, checkin_every=None):
+    graph = build_test_graph(script, narrator=narrator, lore_store=lore_store, checkin_every=checkin_every)
     config = {"configurable": {"thread_id": thread_id}}
     return graph.invoke(new_game_state(persona=persona), config)
 
