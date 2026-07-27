@@ -19,9 +19,12 @@ DM_SYSTEM_PROMPT = (
 
 
 class Narrator(Protocol):
-    def narrate(self, state: GameState, action: PlayerAction | None) -> str:
-        """Produce the next narration beat given the current state and the
-        action just taken (None on the very first turn)."""
+    def narrate(
+        self, state: GameState, action: PlayerAction | None, retrieved_lore: list[str] | None = None
+    ) -> str:
+        """Produce the next narration beat given the current state, the
+        action just taken (None on the very first turn), and any lore/event
+        chunks retrieved for grounding."""
         ...
 
 
@@ -33,8 +36,10 @@ class OllamaNarrator:
 
         self._llm = ChatOllama(model=model, temperature=temperature)
 
-    def narrate(self, state: GameState, action: PlayerAction | None) -> str:
-        prompt = _build_prompt(state, action)
+    def narrate(
+        self, state: GameState, action: PlayerAction | None, retrieved_lore: list[str] | None = None
+    ) -> str:
+        prompt = _build_prompt(state, action, retrieved_lore)
         response = self._llm.invoke(
             [
                 {"role": "system", "content": DM_SYSTEM_PROMPT},
@@ -47,14 +52,20 @@ class OllamaNarrator:
 class MockNarrator:
     """Deterministic stand-in for Ollama. Cycles through scripted lines if
     given any, otherwise echoes a template - good enough to exercise the graph
-    without a real model, e.g. in this sandbox or in unit tests.
+    without a real model, e.g. in this sandbox or in unit tests. Records the
+    last retrieved_lore it was called with, so tests can assert retrieval
+    actually reached the narrator.
     """
 
     def __init__(self, scripted_lines: list[str] | None = None) -> None:
         self._lines = scripted_lines or []
         self._calls = 0
+        self.last_retrieved_lore: list[str] | None = None
 
-    def narrate(self, state: GameState, action: PlayerAction | None) -> str:
+    def narrate(
+        self, state: GameState, action: PlayerAction | None, retrieved_lore: list[str] | None = None
+    ) -> str:
+        self.last_retrieved_lore = retrieved_lore
         if self._calls < len(self._lines):
             line = self._lines[self._calls]
         elif action is None:
@@ -65,7 +76,7 @@ class MockNarrator:
         return line
 
 
-def _build_prompt(state: GameState, action: PlayerAction | None) -> str:
+def _build_prompt(state: GameState, action: PlayerAction | None, retrieved_lore: list[str] | None) -> str:
     lines = [
         f"Location: {state.location}",
         f"HP: {state.hp}/{state.max_hp}",
@@ -75,4 +86,7 @@ def _build_prompt(state: GameState, action: PlayerAction | None) -> str:
         lines.append(f"Player action: {action.raw_text!r} (parsed as {action.intent.value} {action.target or ''})")
     if state.last_engine_result:
         lines.append(f"Engine result to narrate: {state.last_engine_result}")
+    if retrieved_lore:
+        lines.append("Relevant lore/history:")
+        lines.extend(f"- {chunk}" for chunk in retrieved_lore)
     return "\n".join(lines)

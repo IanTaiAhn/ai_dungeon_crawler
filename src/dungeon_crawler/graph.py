@@ -1,16 +1,21 @@
 """The core game loop as a LangGraph StateGraph.
 
 Phase 1 scope: DM narration (Ollama or a mock) + a human player + the
-PlayerAction/GameState schemas + checkpointing for save/resume. No RAG, no
-autonomous player agent yet - those are later phases.
+PlayerAction/GameState schemas + checkpointing for save/resume.
+
+Phase 2 adds retrieval: before each narration, relevant lore/event chunks are
+pulled from a LoreStore (Chroma-backed) and passed to the narrator; after
+narration, the turn's outcome is written back into the same store so later
+turns can retrieve what happened earlier in the session. No autonomous
+player agent yet - that's Phase 3.
 
 A single `invoke()` call runs the whole session: intro narration, then a
-loop of get-action -> resolve (deterministic) -> narrate -> check win/lose,
-repeating until the game ends. `get_action_node` blocks on `action_source`
-each turn (a human typing at a terminal, or a scripted queue for the sandbox
-and tests). The checkpointer persists state after every node, keyed by
-thread_id, so a session can be resumed later by invoking again with the
-same thread_id.
+loop of get-action -> resolve (deterministic) -> retrieve -> narrate ->
+remember -> check win/lose, repeating until the game ends. `get_action_node`
+blocks on `action_source` each turn (a human typing at a terminal, or a
+scripted queue for the sandbox and tests). The checkpointer persists state
+after every node, keyed by thread_id, so a session can be resumed later by
+invoking again with the same thread_id.
 """
 
 from __future__ import annotations
@@ -31,17 +36,29 @@ from dungeon_crawler.game_logic import (
 )
 from dungeon_crawler.llm import Narrator
 from dungeon_crawler.parser import parse_action
+from dungeon_crawler.retrieval import LoreStore
 from dungeon_crawler.schemas import GameState, Intent
 
 ActionSource = Callable[[GameState], str]
 """Supplies the next turn's raw player input - `input()` for a human at a
 terminal, or a scripted queue for the sandbox/tests."""
 
+_RETRIEVAL_K = 3
 
-def build_graph(narrator: Narrator, action_source: ActionSource, checkpointer: Any) -> CompiledStateGraph:
+
+def build_graph(
+    narrator: Narrator, action_source: ActionSource, checkpointer: Any, lore_store: LoreStore
+) -> CompiledStateGraph:
+    def _retrieve_for(state: GameState, extra_query: str = "") -> list[str]:
+        room = scenario.DUNGEON[state.location]
+        query = f"{room.description} {extra_query}".strip()
+        return lore_store.retrieve(query, k=_RETRIEVAL_K)
+
     def intro_node(state: GameState) -> dict:
-        narration = narrator.narrate(state, None)
-        return {"last_narration": narration, "log": [*state.log, narration]}
+        retrieved = _retrieve_for(state)
+        narration = narrator.narrate(state, None, retrieved_lore=retrieved)
+        lore_store.add_event(f"Turn 0: the adventure begins in {state.location}. {narration}", turn=0)
+        return {"last_narration": narration, "retrieved_lore": retrieved, "log": [*state.log, narration]}
 
     def get_action_node(state: GameState) -> dict:
         raw = action_source(state)
@@ -135,12 +152,20 @@ def build_graph(narrator: Narrator, action_source: ActionSource, checkpointer: A
             }
         )
 
+    def retrieve_node(state: GameState) -> dict:
+        return {"retrieved_lore": _retrieve_for(state, extra_query=state.last_engine_result)}
+
     def narrate_node(state: GameState) -> dict:
-        narration = narrator.narrate(state, state.last_action)
+        narration = narrator.narrate(state, state.last_action, retrieved_lore=state.retrieved_lore)
         return {
             "last_narration": narration,
             "log": [*state.log, f"> {state.last_action.raw_text if state.last_action else '(start)'}", narration],
         }
+
+    def remember_node(state: GameState) -> dict:
+        event_text = f"Turn {state.turn_count}: {state.last_engine_result} {state.last_narration}".strip()
+        lore_store.add_event(event_text, turn=state.turn_count)
+        return {}
 
     def check_end_node(state: GameState) -> dict:
         working = state.model_copy(deep=True)
@@ -154,14 +179,18 @@ def build_graph(narrator: Narrator, action_source: ActionSource, checkpointer: A
     graph.add_node("intro", intro_node)
     graph.add_node("get_action", get_action_node)
     graph.add_node("resolve", resolve_node)
+    graph.add_node("retrieve", retrieve_node)
     graph.add_node("narrate", narrate_node)
+    graph.add_node("remember", remember_node)
     graph.add_node("check_end", check_end_node)
 
     graph.add_edge(START, "intro")
     graph.add_edge("intro", "get_action")
     graph.add_edge("get_action", "resolve")
-    graph.add_edge("resolve", "narrate")
-    graph.add_edge("narrate", "check_end")
+    graph.add_edge("resolve", "retrieve")
+    graph.add_edge("retrieve", "narrate")
+    graph.add_edge("narrate", "remember")
+    graph.add_edge("remember", "check_end")
     graph.add_conditional_edges("check_end", route_after_check, {END: END, "get_action": "get_action"})
 
     return graph.compile(checkpointer=checkpointer)

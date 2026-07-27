@@ -58,6 +58,7 @@ class GameState(BaseModel):
     last_narration: str = ""
     last_action: PlayerAction | None = None
     last_engine_result: str = Field(default="", description="Deterministic outcome of the last action, for the DM to narrate")
+    retrieved_lore: list[str] = Field(default_factory=list, description="Lore/event chunks retrieved for the current narration")
     log: list[str] = Field(default_factory=list, description="Turn-by-turn narration/action history")
     game_over: bool = False
     outcome: str | None = Field(default=None, description="'win', 'lose', or None while in progress")
