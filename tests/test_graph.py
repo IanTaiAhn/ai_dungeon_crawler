@@ -1,30 +1,26 @@
 from langgraph.checkpoint.memory import InMemorySaver
 
+from dungeon_crawler.agents import ScriptedActionProvider
 from dungeon_crawler.graph import build_graph, new_game_state
 from dungeon_crawler.llm import MockNarrator
 from dungeon_crawler.retrieval import LoreStore, MockEmbedder
+from dungeon_crawler.schemas import PersonaConfig
 
 
-def _scripted_actions(script):
-    """Returns the scripted lines in order, then "wait" once exhausted.
-    Raising StopIteration from inside a LangGraph node surfaces as a
-    RuntimeError (PEP 479), so scripts shorter than the actual session length
-    must not exhaust the iterator.
+def _run(script, thread_id="t", narrator=None, lore_store=None, persona=None):
+    """`script` is a list of raw text commands - ScriptedActionProvider parses
+    them the same way a human's typed input would be, then falls back to
+    "wait" once exhausted (a script shorter than the session length must not
+    exhaust the underlying iterator, since StopIteration raised inside a
+    LangGraph node surfaces as a RuntimeError per PEP 479). Standing in for an
+    OllamaPlayerAgent lets these tests exercise the persona-driven wiring
+    without needing a real model.
     """
-    it = iter(script)
-
-    def action_source(state):
-        return next(it, "wait")
-
-    return action_source
-
-
-def _run(script, thread_id="t", narrator=None, lore_store=None):
     narrator = narrator or MockNarrator()
     lore_store = lore_store or LoreStore(MockEmbedder())
-    graph = build_graph(narrator, _scripted_actions(script), InMemorySaver(), lore_store)
+    graph = build_graph(narrator, ScriptedActionProvider(script), InMemorySaver(), lore_store)
     config = {"configurable": {"thread_id": thread_id}}
-    return graph.invoke(new_game_state(), config)
+    return graph.invoke(new_game_state(persona=persona), config)
 
 
 def test_full_playthrough_can_be_won():
@@ -77,3 +73,10 @@ def test_turn_events_are_written_back_and_later_retrievable():
     _run(["take rusty sword", "go north"], lore_store=lore_store)
     results = lore_store.retrieve("rusty sword", k=5)
     assert any("rusty sword" in r for r in results)
+
+
+def test_persona_config_flows_through_to_persisted_state():
+    persona = PersonaConfig(name="Wren", goal="Recover the amulet cautiously", risk_tolerance="low")
+    final = _run(["wait"] * 40, persona=persona)
+    assert final["persona"].name == "Wren"
+    assert final["persona"].goal == "Recover the amulet cautiously"

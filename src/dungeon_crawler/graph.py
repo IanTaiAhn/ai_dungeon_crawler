@@ -6,27 +6,29 @@ PlayerAction/GameState schemas + checkpointing for save/resume.
 Phase 2 adds retrieval: before each narration, relevant lore/event chunks are
 pulled from a LoreStore (Chroma-backed) and passed to the narrator; after
 narration, the turn's outcome is written back into the same store so later
-turns can retrieve what happened earlier in the session. No autonomous
-player agent yet - that's Phase 3.
+turns can retrieve what happened earlier in the session.
+
+Phase 3 swaps the action source: an ActionProvider decides each turn's
+PlayerAction, whether that's a human typing at a terminal, an autonomous
+persona-driven player agent, or a scripted stand-in for the sandbox/tests.
 
 A single `invoke()` call runs the whole session: intro narration, then a
 loop of get-action -> resolve (deterministic) -> retrieve -> narrate ->
 remember -> check win/lose, repeating until the game ends. `get_action_node`
-blocks on `action_source` each turn (a human typing at a terminal, or a
-scripted queue for the sandbox and tests). The checkpointer persists state
-after every node, keyed by thread_id, so a session can be resumed later by
+blocks on `action_provider` each turn. The checkpointer persists state after
+every node, keyed by thread_id, so a session can be resumed later by
 invoking again with the same thread_id.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Any
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
 from dungeon_crawler import scenario
+from dungeon_crawler.agents import ActionProvider
 from dungeon_crawler.game_logic import (
     apply_damage_to_player,
     check_end_state,
@@ -35,19 +37,14 @@ from dungeon_crawler.game_logic import (
     use_item,
 )
 from dungeon_crawler.llm import Narrator
-from dungeon_crawler.parser import parse_action
 from dungeon_crawler.retrieval import LoreStore
-from dungeon_crawler.schemas import GameState, Intent
-
-ActionSource = Callable[[GameState], str]
-"""Supplies the next turn's raw player input - `input()` for a human at a
-terminal, or a scripted queue for the sandbox/tests."""
+from dungeon_crawler.schemas import GameState, Intent, PersonaConfig
 
 _RETRIEVAL_K = 3
 
 
 def build_graph(
-    narrator: Narrator, action_source: ActionSource, checkpointer: Any, lore_store: LoreStore
+    narrator: Narrator, action_provider: ActionProvider, checkpointer: Any, lore_store: LoreStore
 ) -> CompiledStateGraph:
     def _retrieve_for(state: GameState, extra_query: str = "") -> list[str]:
         room = scenario.DUNGEON[state.location]
@@ -61,8 +58,7 @@ def build_graph(
         return {"last_narration": narration, "retrieved_lore": retrieved, "log": [*state.log, narration]}
 
     def get_action_node(state: GameState) -> dict:
-        raw = action_source(state)
-        action = parse_action(raw)
+        action = action_provider.get_action(state)
         return {"last_action": action}
 
     def resolve_node(state: GameState) -> dict:
@@ -196,5 +192,5 @@ def build_graph(
     return graph.compile(checkpointer=checkpointer)
 
 
-def new_game_state(location: str = scenario.START_ROOM) -> GameState:
-    return GameState(location=location, room_items=scenario.new_room_items())
+def new_game_state(location: str = scenario.START_ROOM, persona: PersonaConfig | None = None) -> GameState:
+    return GameState(location=location, room_items=scenario.new_room_items(), persona=persona)
