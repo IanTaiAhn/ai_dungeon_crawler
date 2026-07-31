@@ -38,7 +38,7 @@ class HumanActionProvider:
     """Prompts a human at the terminal, then parses their free text."""
 
     def get_action(self, state: GameState) -> PlayerAction:
-        print(f"\n{state.last_narration}\n")
+        print(f"\n{state.last_narration}\n", flush=True)
         raw = input("> ")
         return parse_action(raw)
 
@@ -56,7 +56,7 @@ class OllamaPlayerAgent:
         self._structured_llm = ChatOllama(model=model, temperature=temperature).with_structured_output(PlayerAction)
 
     def get_action(self, state: GameState) -> PlayerAction:
-        print(f"\n{state.last_narration}\n")
+        print(f"\n{state.last_narration}\n", flush=True)
         system = PLAYER_AGENT_SYSTEM_PROMPT.format(
             name=self._persona.name,
             goal=self._persona.goal,
@@ -70,7 +70,7 @@ class OllamaPlayerAgent:
             ]
         )
         action = result if isinstance(result, PlayerAction) else PlayerAction.model_validate(result)
-        print(f"> {action.raw_text}")
+        print(f"> {action.raw_text}", flush=True)
         return action
 
 

@@ -14,11 +14,11 @@ persona-driven player agent, or a scripted stand-in for the sandbox/tests.
 
 Phase 4 adds an optional human check-in: when `checkin_every` is set, a real
 LangGraph `interrupt()` pauses the graph before combat actions and every N
-turns otherwise, surfacing the agent's proposed action so a human can
-approve it (resume with anything falsy/"approve") or override it (resume
-with replacement raw text, parsed the same way typed input would be). This
-only matters for an autonomous agent - it's off by default (None) so a
-human already driving every action isn't interrupted on their own choices.
+turns otherwise, allowing the human to review progress periodically. This is
+automatically disabled in autonomous mode (when a persona is provided) - the
+CLI forces `checkin_every=None` to let the agent play without interruption.
+In human mode, it's off by default (None) to avoid interrupting the player
+on their own typed actions.
 
 A single `invoke()` call runs the graph until it either ends or hits an
 interrupt; the caller must check the result for `__interrupt__` and, if

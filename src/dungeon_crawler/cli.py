@@ -32,9 +32,9 @@ def _run_until_done(graph, initial, config: dict) -> dict:
     result = graph.invoke(initial, config)
     while "__interrupt__" in result:
         info = result["__interrupt__"][0].value
-        print(f"\n--- Check-in ({info['reason']}), turn {info['turn']} at {info['location']} ---")
-        print(info["narration"])
-        print(f"Proposed action: {info['proposed_action']}")
+        print(f"\n--- Check-in ({info['reason']}), turn {info['turn']} at {info['location']} ---", flush=True)
+        print(info["narration"], flush=True)
+        print(f"Proposed action: {info['proposed_action']}", flush=True)
         response = input("Press Enter to approve, or type an override action: ")
         result = graph.invoke(Command(resume=response), config)
     return result
@@ -60,7 +60,7 @@ def main() -> None:
         "--checkin-every",
         type=int,
         default=None,
-        help="Pause for human approval before combat and every N turns otherwise (only useful with --persona)",
+        help="Pause for human approval before combat and every N turns otherwise (disabled when using --persona)",
     )
     args = parser.parse_args()
 
@@ -77,21 +77,24 @@ def main() -> None:
     if args.persona:
         persona = PersonaConfig.model_validate(json.loads(Path(args.persona).read_text()))
         action_provider = OllamaPlayerAgent(persona, model=args.player_model)
-        print(f"Playing as {persona.name}: {persona.goal}")
+        print(f"Playing as {persona.name}: {persona.goal}", flush=True)
     else:
         action_provider = HumanActionProvider()
 
+    # Don't allow check-ins in autonomous mode - the agent plays without interruption
+    checkin_every = None if args.persona else args.checkin_every
+
     with closing(sqlite3.connect(args.db, check_same_thread=False)) as conn:
         checkpointer = SqliteSaver(conn, serde=checkpoint_serde())
-        graph = build_graph(narrator, action_provider, checkpointer, lore_store, checkin_every=args.checkin_every)
+        graph = build_graph(narrator, action_provider, checkpointer, lore_store, checkin_every=checkin_every)
         config = {"configurable": {"thread_id": args.thread_id}}
 
         existing = graph.get_state(config)
         initial = None if existing.values else new_game_state(persona=persona)
 
         final_state = _run_until_done(graph, initial, config)
-        print(f"\n{final_state['last_narration']}\n")
-        print(f"Game over: {final_state['outcome']}")
+        print(f"\n{final_state['last_narration']}\n", flush=True)
+        print(f"Game over: {final_state['outcome']}", flush=True)
 
 
 if __name__ == "__main__":

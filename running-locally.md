@@ -74,6 +74,7 @@ Different `--thread-id` values are independent save slots. Useful flags:
 | `--embedding-model` | `nomic-embed-text` | Lore embedding model |
 | `--lore-dir` | `lore/` | Lore corpus directory |
 | `--chroma-dir` | `dungeon_crawler_chroma/` | Persistent lore/event vector store |
+| `--checkin-every` | `None` | (Human mode only) Pause for approval before combat and every N turns |
 
 ## 5. Watch an autonomous persona play
 
@@ -83,11 +84,13 @@ uv run dungeon-crawler --persona personas/cautious_scout.json
 
 Three example personas ship in `personas/`: `cautious_scout.json`, `greedy_looter.json`, `honorable_warden.json`. Each is a small JSON file matching `PersonaConfig` - copy one to write your own (`name`, `goal`, `risk_tolerance`, `values`).
 
-Add `--player-model` to pick the agent's model, and `--checkin-every N` if you want to pause and approve/override its action before combat and every N turns otherwise:
+The agent plays autonomously from start to finish without interruption. Add `--player-model` to pick the agent's model:
 
 ```bash
-uv run dungeon-crawler --persona personas/greedy_looter.json --player-model llama3.2:3b --checkin-every 5
+uv run dungeon-crawler --persona personas/greedy_looter.json --player-model llama3.2:3b
 ```
+
+**Note**: `--checkin-every` is automatically disabled in autonomous mode. If you want human oversight during play, run without `--persona` and type the actions yourself.
 
 ## 6. Compare personas with the eval harness
 

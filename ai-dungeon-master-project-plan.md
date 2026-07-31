@@ -63,7 +63,7 @@ Build a text-adventure game where:
 | 1 | Core loop: DM (Ollama) + human player + Pydantic action schema + LangGraph checkpointing, **no RAG yet** | Play a bare-bones adventure end to end in the terminal |
 | 2 | Add Chroma + lore corpus + retrieval before narration | Notice the DM referencing established lore instead of improvising inconsistently |
 | 3 | Swap human input for the **player agent** (persona-driven, quantized model, think-and-decide node) | Watch an AI play the game according to a description you gave it |
-| 4 | Add the human check-in interrupt | Pause and override the agent on a risky turn |
+| 4 | Add the human check-in interrupt | Optional pause for approval in human mode (`--checkin-every`) |
 | 5 | Add the eval harness (retrieval metrics + goal-achievement scoring) | Run 2–3 different personas through the same scenario and compare, with numbers instead of vibes |
 | 6 (stretch) | FastAPI wrapper, MCP tool server, deploy somewhere | Show it off as a real portfolio artifact |
 
