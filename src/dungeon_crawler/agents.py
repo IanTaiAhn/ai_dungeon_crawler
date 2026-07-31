@@ -10,6 +10,8 @@ from typing import Protocol
 
 from langgraph.types import interrupt
 
+from dungeon_crawler import scenario
+from dungeon_crawler.items import get_equipped_weapon, is_usable_item
 from dungeon_crawler.parser import parse_action
 from dungeon_crawler.schemas import GameState, Intent, PersonaConfig, PlayerAction
 
@@ -35,12 +37,121 @@ class ActionProvider(Protocol):
 
 
 class HumanActionProvider:
-    """Prompts a human at the terminal, then parses their free text."""
+    """Prompts a human at the terminal with a numbered menu of available actions."""
 
     def get_action(self, state: GameState) -> PlayerAction:
         print(f"\n{state.last_narration}\n", flush=True)
-        raw = input("> ")
-        return parse_action(raw)
+
+        # Display status
+        self._display_status(state)
+
+        # Build list of available actions based on current state
+        actions = self._build_action_menu(state)
+
+        # Display the menu
+        print("\nAvailable actions:")
+        for i, (description, _) in enumerate(actions, 1):
+            print(f"  {i}. {description}")
+
+        # Get player choice
+        while True:
+            try:
+                choice = input("\nChoose action (number): ").strip()
+                index = int(choice) - 1
+                if 0 <= index < len(actions):
+                    _, action = actions[index]
+                    return action
+                else:
+                    print(f"Please enter a number between 1 and {len(actions)}")
+            except ValueError:
+                print("Please enter a valid number")
+            except (KeyboardInterrupt, EOFError):
+                # Allow Ctrl+C or Ctrl+D to exit gracefully
+                raise
+
+    def _display_status(self, state: GameState) -> None:
+        """Display current player status."""
+        room = scenario.DUNGEON[state.location]
+
+        print("=" * 60)
+        print(f"Location: {room.name.replace('_', ' ').title()}")
+        print(f"HP: {state.hp}/{state.max_hp}")
+
+        # Show equipped weapon
+        weapon = get_equipped_weapon(state)
+        if weapon and weapon.weapon_stats:
+            print(f"Weapon: {weapon.name} (+{weapon.weapon_stats.attack_bonus} hit, +{weapon.weapon_stats.damage_bonus} dmg)")
+        else:
+            print(f"Weapon: (unarmed)")
+
+        print(f"Inventory: {', '.join(state.inventory) if state.inventory else '(empty)'}")
+        print(f"Turn: {state.turn_count}/{state.max_turns}")
+
+        # Show monster status if present
+        if room.monster:
+            monster_hp = state.monster_hp.get(room.monster, scenario.monster_max_hp(room.monster))
+            if monster_hp > 0:
+                print(f"Enemy: {room.monster} ({monster_hp} HP)")
+
+        print("=" * 60)
+
+    def _build_action_menu(self, state: GameState) -> list[tuple[str, PlayerAction]]:
+        """Returns list of (description, PlayerAction) tuples for available actions."""
+        actions: list[tuple[str, PlayerAction]] = []
+
+        room = scenario.DUNGEON[state.location]
+
+        # Movement options
+        for direction, dest in sorted(room.exits.items()):
+            dest_name = dest.replace("_", " ")
+            actions.append((
+                f"Go {direction} to {dest_name}",
+                PlayerAction(intent=Intent.MOVE, direction=direction, raw_text=f"go {direction}")
+            ))
+
+        # Attack option (if there's a living monster)
+        if room.monster:
+            current_hp = state.monster_hp.get(room.monster, scenario.monster_max_hp(room.monster))
+            if current_hp > 0:
+                actions.append((
+                    f"Attack the {room.monster}",
+                    PlayerAction(intent=Intent.ATTACK, target=room.monster, raw_text=f"attack {room.monster}")
+                ))
+
+        # Take item options (items in current room)
+        room_items = state.room_items.get(state.location, [])
+        for item in room_items:
+            actions.append((
+                f"Take the {item}",
+                PlayerAction(intent=Intent.TAKE_ITEM, target=item, raw_text=f"take {item}")
+            ))
+
+        # Use item options (only for consumable items, not weapons/quest items)
+        for item in state.inventory:
+            if is_usable_item(item):
+                actions.append((
+                    f"Use {item}",
+                    PlayerAction(intent=Intent.USE_ITEM, target=item, raw_text=f"use {item}")
+                ))
+
+        # Always available actions
+        actions.append((
+            "Inspect the area",
+            PlayerAction(intent=Intent.INSPECT, raw_text="inspect")
+        ))
+
+        if room.monster and state.monster_hp.get(room.monster, scenario.monster_max_hp(room.monster)) > 0:
+            actions.append((
+                "Flee from danger",
+                PlayerAction(intent=Intent.FLEE, raw_text="flee")
+            ))
+
+        actions.append((
+            "Wait and observe",
+            PlayerAction(intent=Intent.WAIT, raw_text="wait")
+        ))
+
+        return actions
 
 
 class OllamaPlayerAgent:

@@ -46,8 +46,15 @@ def take_item(state: GameState, item: str, available_items: list[str]) -> bool:
 
 
 def use_item(state: GameState, item: str) -> bool:
+    """Use a consumable item. Returns True if successful."""
     if item not in state.inventory:
         return False
+
+    # Apply item effects
+    if item == "healing potion":
+        state.hp = min(state.max_hp, state.hp + 5)
+
+    # Remove item from inventory (it's consumed)
     state.inventory.remove(item)
     return True
 

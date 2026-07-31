@@ -48,6 +48,7 @@ from dungeon_crawler.game_logic import (
     take_item,
     use_item,
 )
+from dungeon_crawler.items import get_equipped_weapon, get_weapon_stats
 from dungeon_crawler.llm import Narrator
 from dungeon_crawler.parser import parse_action
 from dungeon_crawler.retrieval import LoreStore
@@ -132,15 +133,39 @@ def build_graph(
                 result = "There's nothing here to attack."
             else:
                 stats = scenario.MONSTERS[monster]
-                atk = resolve_attack(attacker_bonus=2, target_ac=stats.ac, damage_range=(2, 6))
+
+                # Get weapon bonuses from inventory
+                attack_bonus, damage_bonus = get_weapon_stats(working)
+                weapon = get_equipped_weapon(working)
+                weapon_name = weapon.name if weapon else None
+
+                # Base stats (unarmed) + weapon bonuses
+                base_attack = 1  # Base attack bonus when unarmed
+                base_damage_range = (1, 3)  # Base damage when unarmed
+
+                final_attack_bonus = base_attack + attack_bonus
+                final_damage_range = (
+                    base_damage_range[0] + damage_bonus,
+                    base_damage_range[1] + damage_bonus
+                )
+
+                atk = resolve_attack(
+                    attacker_bonus=final_attack_bonus,
+                    target_ac=stats.ac,
+                    damage_range=final_damage_range
+                )
+
                 if atk.hit:
                     current_hp -= atk.damage
                     working.monster_hp[monster] = current_hp
-                    result = f"You hit the {monster} for {atk.damage}."
+                    weapon_desc = f" with the {weapon_name}" if weapon_name else " with your bare hands"
+                    result = f"You hit the {monster}{weapon_desc} for {atk.damage}."
                     if current_hp <= 0:
                         result += f" The {monster} is defeated."
                 else:
-                    result = f"You swing at the {monster} and miss."
+                    weapon_desc = f" with the {weapon_name}" if weapon_name else ""
+                    result = f"You swing at the {monster}{weapon_desc} and miss."
+
                 if current_hp > 0:
                     retaliation = resolve_attack(
                         attacker_bonus=stats.attack_bonus, target_ac=8, damage_range=stats.damage_range
@@ -162,7 +187,12 @@ def build_graph(
         elif action.intent is Intent.USE_ITEM:
             item = action.target
             if item and use_item(working, item):
-                result = f"You use the {item}."
+                # Give specific feedback for known consumables
+                if item == "healing potion":
+                    hp_restored = working.hp - state.hp
+                    result = f"You drink the {item} and restore {hp_restored} HP."
+                else:
+                    result = f"You use the {item}."
             else:
                 result = f"You don't have a {item or 'that'} to use."
 

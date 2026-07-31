@@ -45,9 +45,9 @@ DUNGEON: dict[str, Room] = {
     ),
     "treasure_room": Room(
         name="treasure_room",
-        description="Gold coins spill across the floor, and an ancient amulet rests on a stone pedestal.",
+        description="Gold coins spill across the floor, and an ancient amulet rests on a stone pedestal. A small vial of red liquid sits nearby.",
         exits={"west": "guard_room"},
-        starting_items=[WIN_ITEM],
+        starting_items=[WIN_ITEM, "healing potion"],
     ),
 }
 
