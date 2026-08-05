@@ -19,6 +19,7 @@ from dungeon_crawler.agents import HumanActionProvider, OllamaPlayerAgent
 from dungeon_crawler.checkpointing import checkpoint_serde
 from dungeon_crawler.graph import build_graph, new_game_state
 from dungeon_crawler.llm import OllamaNarrator
+from dungeon_crawler.observability import trace_config
 from dungeon_crawler.retrieval import OllamaEmbedder, build_lore_store
 from dungeon_crawler.schemas import PersonaConfig
 
@@ -87,7 +88,7 @@ def main() -> None:
     with closing(sqlite3.connect(args.db, check_same_thread=False)) as conn:
         checkpointer = SqliteSaver(conn, serde=checkpoint_serde())
         graph = build_graph(narrator, action_provider, checkpointer, lore_store, checkin_every=checkin_every)
-        config = {"configurable": {"thread_id": args.thread_id}}
+        config = trace_config(args.thread_id)
 
         existing = graph.get_state(config)
         initial = None if existing.values else new_game_state(persona=persona)

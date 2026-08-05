@@ -138,6 +138,33 @@ uv run python -m dungeon_crawler.mcp_server
 
 This speaks MCP over stdio, exposing `start_game`, `take_action`, `check_inventory`, `save_game`, and `roll_dice` as tools - point an MCP-compatible client (e.g. Claude Desktop's config) at it to let another agent play the dungeon crawler as an external tool user instead of through LangGraph directly.
 
+## 9. Tracing (optional)
+
+Every graph run can optionally be traced to a self-hosted
+[Langfuse](https://langfuse.com/) instance - per-node timing/inputs/outputs
+for each step of the turn loop, plus prompt/response/latency/token usage for
+every Ollama call (narration, the autonomous player agent, and the eval
+judge). See `OBSERVABILITY.md` for the design.
+
+Tracing is off by default and requires no code changes to disable - it only
+activates when both env vars below are set, so nothing here is required to
+play, test, or serve the game:
+
+```bash
+export LANGFUSE_PUBLIC_KEY=pk-...
+export LANGFUSE_SECRET_KEY=sk-...
+export LANGFUSE_HOST=http://localhost:3000  # or your self-hosted instance
+```
+
+With those set, `uv run dungeon-crawler`, the API/MCP servers, and
+`uv run dungeon-crawler-eval` all send traces automatically. Games are
+grouped in the Langfuse UI by `--thread-id`/session, so a whole playthrough
+(across turns, and across resumes) shows up as one timeline. Eval runs are
+additionally tagged `eval` + the persona name.
+
+If Langfuse is unreachable, traces fail to export in the background without
+affecting gameplay - see `OBSERVABILITY.md` for details.
+
 ## Troubleshooting
 
 - **`ConnectionError: Failed to connect to Ollama`** - Ollama isn't running. Start it (`ollama serve` or the desktop app) and confirm with `ollama list`.
@@ -150,3 +177,4 @@ This speaks MCP over stdio, exposing `start_game`, `take_action`, `check_invento
 
 - `ai-dungeon-master-project-plan.md` - the original layer-by-layer plan and phase breakdown.
 - `compute-requirements.md` - model sizing and hardware requirements in more detail.
+- `OBSERVABILITY.md` - the Langfuse tracing design.

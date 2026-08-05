@@ -23,6 +23,7 @@ from dungeon_crawler.agents import InterruptActionProvider
 from dungeon_crawler.checkpointing import checkpoint_serde
 from dungeon_crawler.graph import build_graph, new_game_state
 from dungeon_crawler.llm import Narrator
+from dungeon_crawler.observability import trace_config
 from dungeon_crawler.retrieval import Embedder, build_lore_store
 from dungeon_crawler.schemas import PersonaConfig
 
@@ -56,12 +57,12 @@ class GameServer:
 
     def start_game(self, persona: PersonaConfig | None = None, thread_id: str | None = None) -> dict[str, Any]:
         thread_id = thread_id or uuid.uuid4().hex
-        config = {"configurable": {"thread_id": thread_id}}
+        config = trace_config(thread_id)
         result = self._graph.invoke(new_game_state(persona=persona), config)
         return self._summarize(thread_id, result)
 
     def submit_action(self, thread_id: str, raw_text: str) -> dict[str, Any]:
-        config = {"configurable": {"thread_id": thread_id}}
+        config = trace_config(thread_id)
         values = self._graph.get_state(config).values
         if not values:
             raise GameNotFoundError(thread_id)
@@ -71,7 +72,7 @@ class GameServer:
         return self._summarize(thread_id, result)
 
     def get_status(self, thread_id: str) -> dict[str, Any]:
-        config = {"configurable": {"thread_id": thread_id}}
+        config = trace_config(thread_id)
         values = self._graph.get_state(config).values
         if not values:
             raise GameNotFoundError(thread_id)
