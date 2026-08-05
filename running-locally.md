@@ -144,7 +144,8 @@ Every graph run can optionally be traced to a self-hosted
 [Langfuse](https://langfuse.com/) instance - per-node timing/inputs/outputs
 for each step of the turn loop, plus prompt/response/latency/token usage for
 every Ollama call (narration, the autonomous player agent, and the eval
-judge). See `OBSERVABILITY.md` for the design.
+judge). See `OBSERVABILITY.md` for the design, or `langfuse-setup.md` for a
+step-by-step guide to standing up Langfuse and getting it wired up.
 
 Tracing is off by default and requires no code changes to disable - it only
 activates when both env vars below are set, so nothing here is required to
@@ -178,3 +179,4 @@ affecting gameplay - see `OBSERVABILITY.md` for details.
 - `ai-dungeon-master-project-plan.md` - the original layer-by-layer plan and phase breakdown.
 - `compute-requirements.md` - model sizing and hardware requirements in more detail.
 - `OBSERVABILITY.md` - the Langfuse tracing design.
+- `langfuse-setup.md` - step-by-step guide to standing up Langfuse locally.

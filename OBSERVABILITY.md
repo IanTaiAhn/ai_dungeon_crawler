@@ -3,7 +3,8 @@
 Status: implemented. `src/dungeon_crawler/observability.py` plus wiring in
 `sessions.py`, `cli.py`, `evaluation.py`. Standing up a Langfuse instance
 and setting `LANGFUSE_PUBLIC_KEY`/`LANGFUSE_SECRET_KEY` is still a manual
-step outside this repo - see `running-locally.md` for the env vars.
+step outside this repo - see `langfuse-setup.md` for a step-by-step guide,
+or `running-locally.md` §9 for the short version.
 
 ## Goal
 
