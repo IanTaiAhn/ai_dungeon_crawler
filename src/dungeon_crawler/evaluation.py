@@ -26,6 +26,7 @@ from dungeon_crawler.agents import ActionProvider
 from dungeon_crawler.checkpointing import checkpoint_serde
 from dungeon_crawler.graph import build_graph, new_game_state
 from dungeon_crawler.llm import Narrator
+from dungeon_crawler.observability import trace_config
 from dungeon_crawler.retrieval import LoreStore
 from dungeon_crawler.schemas import PersonaConfig
 
@@ -176,7 +177,8 @@ def run_persona_playthrough(
     """
     checkpointer = InMemorySaver(serde=checkpoint_serde())
     graph = build_graph(narrator, action_provider, checkpointer, lore_store)
-    config = {"configurable": {"thread_id": f"eval-{persona.name}"}}
+    thread_id = f"eval-{persona.name}"
+    config = trace_config(thread_id, tags=["eval", persona.name])
     final = graph.invoke(new_game_state(persona=persona), config)
     transcript = "\n".join(final["log"])
     return PersonaRunResult(

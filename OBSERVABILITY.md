@@ -1,6 +1,9 @@
 # Observability design: Langfuse tracing for the game graph
 
-Status: design draft, not yet implemented.
+Status: implemented. `src/dungeon_crawler/observability.py` plus wiring in
+`sessions.py`, `cli.py`, `evaluation.py`. Standing up a Langfuse instance
+and setting `LANGFUSE_PUBLIC_KEY`/`LANGFUSE_SECRET_KEY` is still a manual
+step outside this repo - see `running-locally.md` for the env vars.
 
 ## Goal
 
@@ -101,16 +104,31 @@ just extending dicts already being built):
   so far, they delegate through `GameServer`/`run_persona_playthrough` and
   shouldn't need direct changes.
 
-**3. New dependency**: `langfuse` added to `pyproject.toml`. Proposing it as
-a plain dependency (not an optional extra) — it's a lightweight HTTP client
-with no heavy transitive deps, and gating activation via env-var-presence
+**3. New dependencies**: `langfuse` added to `pyproject.toml` as a plain
+dependency (not an optional extra) — gating activation via env-var-presence
 (rather than via `try/except ImportError`) keeps the code simpler, matching
-this project's general preference for minimal conditional-import
-machinery.
+this project's general preference for minimal conditional-import machinery.
+
+One discovery during implementation: Langfuse's LangChain callback
+integration (`langfuse.langchain.CallbackHandler`) requires the full
+`langchain` package to be importable (it branches on `langchain.__version__`
+internally), not just `langchain-core`/`langchain-ollama`, which is all this
+project needed before. `langchain` was added alongside it. This did *not*
+force any version changes elsewhere — the project's existing loose `>=`
+pins on `langgraph`/`langchain-core`/`langchain-ollama` were already
+resolving to their current 1.x lines before this change (verified via
+`uv.lock` diff), so no upgrade cascade happened.
 
 **4. Self-hosted Langfuse instance.** Needs Postgres + ClickHouse + Redis +
-blob storage per Langfuse's current self-host requirements. Open question
-below on how to stand this up.
+blob storage per Langfuse's current self-host requirements. Not vendored in
+this repo (see open question 1 below, resolved as documentation-only) —
+standing one up is an external prerequisite, same as Ollama.
+
+**5. Failure behavior verified.** With `LANGFUSE_PUBLIC_KEY`/`_SECRET_KEY`
+set but the Langfuse host unreachable, a full session start/submit-action
+round-trip through `GameServer` still completes normally — span export
+failures are retried and logged by the background OTel exporter, never
+raised into game logic. Tracing being down does not mean gameplay is down.
 
 ## What's deliberately out of scope
 
@@ -124,35 +142,38 @@ below on how to stand this up.
   paths beyond what the graph-level callback already captures — they don't
   make LLM calls, so there's nothing extra to instrument there.
 
-## Open questions before implementation
+## Still open / not implemented
 
-1. **Standing up Langfuse itself** — vendor a `docker-compose.yml` in this
-   repo (convenient, but another multi-service stack to keep in sync with
-   upstream Langfuse's own compose file as it evolves), or just document
-   pointing at Langfuse's own self-hosting repo/instructions and treat "a
-   running Langfuse instance" as an external prerequisite, the same way
-   Ollama already is? **Leaning toward documenting-only**, to avoid owning
-   a copy of Langfuse's infra config.
-2. **Stretch goal**: Langfuse supports attaching *scores* to a trace.
-   `evaluation.py`'s existing `GoalScore` (1-5 + rationale from
+1. **Standing up Langfuse itself** — resolved as documentation-only (see
+   `running-locally.md` §9): a running Langfuse instance is an external
+   prerequisite, not vendored via a `docker-compose.yml` in this repo.
+2. **Stretch goal, not done**: Langfuse supports attaching *scores* to a
+   trace. `evaluation.py`'s existing `GoalScore` (1-5 + rationale from
    `OllamaJudge`, `evaluation.py:69-71`) maps directly onto that — pushing
    it as a trace score would turn Langfuse into a lightweight eval
    dashboard, not just a tracer, letting you compare persona runs visually
-   over time. Worth doing, but proposing it as a follow-up after basic
-   tracing works, not bundled into the first pass.
-3. Any preference on tags/metadata beyond `thread_id`-as-session and the
-   eval tags above (e.g. an `environment` tag for local vs. some future
-   deployment)?
+   over time. Left as a follow-up.
+3. No tags/metadata beyond `thread_id`-as-session and the `eval` +
+   persona-name eval tags were added. No `environment` tag or similar —
+   add if it becomes useful.
+4. **Not yet verified against a real Langfuse instance + real Ollama**:
+   the wiring was verified with `uv run pytest -q` (fully mocked, 77
+   passing) and with a real `CallbackHandler` pointed at an unreachable
+   host (confirms graceful degradation, not correct trace content). Actually
+   opening the Langfuse UI and confirming node spans nest correctly under
+   LLM spans, with real prompt/response/latency/token data, still needs a
+   local Ollama + Langfuse instance to do.
 
-## Rollout plan
+## Rollout status
 
-1. Stand up Langfuse locally (per open question 1), get API keys.
-2. Add `langfuse` dependency; write `observability.py`.
-3. Wire `trace_config()` into `sessions.py`, `cli.py`, `evaluation.py`.
-4. Play a real game against local Ollama with tracing on; confirm in the
-   Langfuse UI: node spans nested correctly, LLM spans show prompt/response/
-   latency/tokens, multi-turn server sessions group under one `session_id`,
-   an interrupted trace shows as complete-not-errored.
-5. Update `running-locally.md` with the new env vars and an optional
-   "tracing" section.
-6. (Stretch) wire `GoalScore` into Langfuse trace scores for eval runs.
+1. ~~Stand up Langfuse locally~~ — deferred to whoever runs this with
+   tracing on; not required for the code to work.
+2. Done: `langfuse` (+ `langchain`, a required transitive need) added;
+   `observability.py` written.
+3. Done: `trace_config()` wired into `sessions.py`, `cli.py`,
+   `evaluation.py`. `api.py`/`mcp_server.py` needed no direct changes —
+   they delegate through `GameServer`/`run_persona_playthrough`.
+4. Not done — needs a real Langfuse + Ollama instance (see open item 4
+   above).
+5. Done: `running-locally.md` §9 documents the env vars and behavior.
+6. Not done (stretch, see open item 2 above).
