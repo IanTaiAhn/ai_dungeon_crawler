@@ -3,7 +3,7 @@ import pytest
 from dungeon_crawler.llm import MockNarrator
 from dungeon_crawler.retrieval import MockEmbedder
 from dungeon_crawler.schemas import PersonaConfig
-from dungeon_crawler.sessions import GameNotFoundError, GameServer
+from dungeon_crawler.sessions import DailyRunLimitExceeded, GameNotFoundError, GameServer
 
 _WIN_SCRIPT = [
     "take rusty sword",
@@ -27,6 +27,26 @@ def test_start_game_returns_awaiting_action_with_intro_narration():
     assert result["status"] == "awaiting_action"
     assert result["turn"] == 1
     assert "thread_id" in result
+
+
+def test_start_game_without_client_key_is_never_rate_limited():
+    server = GameServer(MockNarrator(), MockEmbedder(), daily_run_limit=1)
+    for _ in range(3):
+        assert server.start_game()["status"] == "awaiting_action"
+
+
+def test_start_game_enforces_daily_run_limit_per_client():
+    server = GameServer(MockNarrator(), MockEmbedder(), daily_run_limit=2)
+    server.start_game(client_key="1.2.3.4")
+    server.start_game(client_key="1.2.3.4")
+    with pytest.raises(DailyRunLimitExceeded):
+        server.start_game(client_key="1.2.3.4")
+
+
+def test_daily_run_limit_is_tracked_per_client():
+    server = GameServer(MockNarrator(), MockEmbedder(), daily_run_limit=1)
+    server.start_game(client_key="1.2.3.4")
+    assert server.start_game(client_key="5.6.7.8")["status"] == "awaiting_action"
 
 
 def test_submit_action_advances_the_turn():

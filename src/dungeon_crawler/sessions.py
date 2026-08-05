@@ -23,8 +23,11 @@ from dungeon_crawler.agents import InterruptActionProvider
 from dungeon_crawler.checkpointing import checkpoint_serde
 from dungeon_crawler.graph import build_graph, new_game_state
 from dungeon_crawler.llm import Narrator
+from dungeon_crawler.rate_limit import DailyRunLimiter, DailyRunLimitExceeded
 from dungeon_crawler.retrieval import Embedder, build_lore_store
 from dungeon_crawler.schemas import PersonaConfig
+
+__all__ = ["DailyRunLimitExceeded", "GameNotFoundError", "GameServer"]
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -46,6 +49,7 @@ class GameServer:
         lore_dir: Path | None = None,
         db_path: str = ":memory:",
         lore_collection_name: str | None = None,
+        daily_run_limit: int = 2,
     ) -> None:
         self._conn = sqlite3.connect(db_path, check_same_thread=False)
         checkpointer = SqliteSaver(self._conn, serde=checkpoint_serde())
@@ -53,8 +57,17 @@ class GameServer:
             embedder, lore_dir or (_REPO_ROOT / "lore"), collection_name=lore_collection_name
         )
         self._graph: CompiledStateGraph = build_graph(narrator, InterruptActionProvider(), checkpointer, lore_store)
+        self._run_limiter = DailyRunLimiter(self._conn, limit=daily_run_limit)
 
-    def start_game(self, persona: PersonaConfig | None = None, thread_id: str | None = None) -> dict[str, Any]:
+    def start_game(
+        self, persona: PersonaConfig | None = None, thread_id: str | None = None, client_key: str | None = None
+    ) -> dict[str, Any]:
+        """`client_key` identifies who's starting the run (e.g. caller IP)
+        for the daily cap - callers with no notion of "client" (MCP over
+        stdio, local scripting, tests) pass None to skip the cap entirely.
+        """
+        if client_key is not None:
+            self._run_limiter.check_and_increment(client_key)
         thread_id = thread_id or uuid.uuid4().hex
         config = {"configurable": {"thread_id": thread_id}}
         result = self._graph.invoke(new_game_state(persona=persona), config)

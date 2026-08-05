@@ -60,7 +60,7 @@ Either way, this is a hobby-project cost, not a provisioning problem — which i
 
 These don't change the numbers above but are worth calling out as gaps if this goes further:
 
-- **No auth or rate limiting** on the FastAPI routes (`api.py`) — anyone who finds the URL can start unlimited games against your API key. Worth adding even for a demo, since it's what actually caps worst-case cost.
+- **No auth**, but `POST /games` is now capped per client IP (`X-Forwarded-For`, falling back to the socket address) at `DAILY_RUN_LIMIT` (default 2) new games/day — see `rate_limit.py`. Combined with the existing 40-turn-per-run cap, that bounds worst-case daily LLM/embedding cost per visitor even with no login.
 - **Postgres checkpointer** (`langgraph-checkpoint-postgres`) is only needed if you outgrow a single Render instance — not a concern at this scale.
 - **Tracing/observability** (Langfuse/LangSmith, listed as a stretch goal in the project plan) still isn't wired into the code — not a cost item, but worth having before debugging a live deploy blind.
 

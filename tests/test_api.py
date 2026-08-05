@@ -57,6 +57,23 @@ def test_get_status_for_unknown_game_is_404(client):
     assert response.status_code == 404
 
 
+def test_starting_a_third_game_in_a_day_is_rate_limited(client):
+    assert client.post("/games", json={}).status_code == 200
+    assert client.post("/games", json={}).status_code == 200
+    response = client.post("/games", json={})
+    assert response.status_code == 429
+
+
+def test_daily_run_limit_is_scoped_by_forwarded_ip(client):
+    headers_a = {"x-forwarded-for": "1.1.1.1"}
+    headers_b = {"x-forwarded-for": "2.2.2.2"}
+    client.post("/games", json={}, headers=headers_a)
+    client.post("/games", json={}, headers=headers_a)
+    assert client.post("/games", json={}, headers=headers_a).status_code == 429
+    # a different client IP still has its own quota
+    assert client.post("/games", json={}, headers=headers_b).status_code == 200
+
+
 def test_full_playthrough_reaches_a_terminal_outcome(client):
     thread_id = client.post("/games", json={}).json()["thread_id"]
     script = [
