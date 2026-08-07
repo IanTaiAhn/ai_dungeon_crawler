@@ -25,6 +25,7 @@ class Monster:
     attack_bonus: int
     ac: int
     damage_range: tuple[int, int]
+    weak_to_fire: bool = False
 
 
 START_ROOM = "entrance"
@@ -36,6 +37,14 @@ KEY_ITEM = "ancient amulet"
 KEY_FLAG = "amulet_recovered"
 WIN_ITEM = "frostbound crown"
 WIN_FLAG = "crown_recovered"
+
+# The amulet also carries a dormant flame ward: recovering it grants a
+# limited number of flame-spell casts, a stronger-but-scarce alternative to
+# a weapon's unlimited-but-weaker physical attacks.
+FLAME_SPELL_CHARGES = 3
+FLAME_SPELL_ATTACK_BONUS = 4
+FLAME_SPELL_DAMAGE_RANGE = (3, 6)
+FLAME_SPELL_WEAKNESS_BONUS = 3  # extra damage on a hit against a weak_to_fire monster
 
 DUNGEON: dict[str, Room] = {
     "entrance": Room(
@@ -72,7 +81,7 @@ DUNGEON: dict[str, Room] = {
 
 MONSTERS: dict[str, Monster] = {
     "goblin": Monster(name="goblin", hp=7, attack_bonus=2, ac=8, damage_range=(1, 4)),
-    "crystal golem": Monster(name="crystal golem", hp=14, attack_bonus=3, ac=13, damage_range=(2, 6)),
+    "crystal golem": Monster(name="crystal golem", hp=14, attack_bonus=3, ac=13, damage_range=(2, 6), weak_to_fire=True),
 }
 
 

@@ -26,7 +26,11 @@ PLAYER_AGENT_SYSTEM_PROMPT = (
     "Fill in: intent (one of the valid intents listed below), target (the "
     "NPC/item/object, if any), direction (only for the move intent), and "
     "raw_text (a short first-person phrase describing the action, e.g. "
-    "'go north' or 'attack the goblin')."
+    "'go north' or 'attack the goblin').\n"
+    "If you're carrying the amulet, cast_spell channels its flame ward "
+    "against whatever's here - stronger than a physical attack but limited "
+    "by the charge count reported below, so weigh unlimited attack against "
+    "scarce cast_spell rather than always picking one."
 )
 
 
@@ -85,6 +89,8 @@ class HumanActionProvider:
             print(f"Weapon: (unarmed)")
 
         print(f"Inventory: {', '.join(state.inventory) if state.inventory else '(empty)'}")
+        if state.quest_flags.get(scenario.KEY_FLAG):
+            print(f"Flame spell charges: {state.spell_charges}")
         print(f"Turn: {state.turn_count}/{state.max_turns}")
 
         # Show monster status if present
@@ -120,6 +126,16 @@ class HumanActionProvider:
                     f"Attack the {room.monster}",
                     PlayerAction(intent=Intent.ATTACK, target=room.monster, raw_text=f"attack {room.monster}")
                 ))
+
+                # Cast flame spell option (once the amulet is recovered and charges remain)
+                if state.quest_flags.get(scenario.KEY_FLAG) and state.spell_charges > 0:
+                    charges = state.spell_charges
+                    actions.append((
+                        f"Cast flame spell at the {room.monster} ({charges} charge{'s' if charges != 1 else ''} left)",
+                        PlayerAction(
+                            intent=Intent.CAST_SPELL, target=room.monster, raw_text=f"cast flame at {room.monster}"
+                        )
+                    ))
 
         # Take item options (items in current room)
         room_items = state.room_items.get(state.location, [])
@@ -229,6 +245,8 @@ def _build_agent_prompt(state: GameState) -> str:
         f"HP: {state.hp}/{state.max_hp}",
         f"Inventory: {', '.join(state.inventory) or 'empty'}",
     ]
+    if state.quest_flags.get(scenario.KEY_FLAG):
+        lines.append(f"Flame spell charges remaining: {state.spell_charges}")
     if state.retrieved_lore:
         lines.append("Relevant lore/history:")
         lines.extend(f"- {chunk}" for chunk in state.retrieved_lore)

@@ -37,6 +37,8 @@ _DRY_RUN_SCRIPT = [
     "go east",
     "take ancient amulet",
     "go down",
+    "cast flame at crystal golem",
+    "cast flame at crystal golem",
     "take frostbound crown",
 ]
 

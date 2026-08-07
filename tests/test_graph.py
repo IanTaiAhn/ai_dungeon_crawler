@@ -1,3 +1,6 @@
+from dungeon_crawler import graph as graph_module
+from dungeon_crawler import scenario
+from dungeon_crawler.game_logic import AttackResult
 from dungeon_crawler.graph import new_game_state
 from dungeon_crawler.llm import MockNarrator
 from dungeon_crawler.retrieval import LoreStore, MockEmbedder
@@ -82,3 +85,57 @@ def test_persona_config_flows_through_to_persisted_state():
     final = _run(["wait"] * 40, persona=persona)
     assert final["persona"].name == "Wren"
     assert final["persona"].goal == "Recover the amulet cautiously"
+
+
+def test_casting_the_flame_spell_before_the_amulet_does_nothing():
+    final = _run(["go north", "cast flame at goblin"])
+    assert final["spell_charges"] == 0
+    assert "goblin" not in final["monster_hp"]
+
+
+def test_recovering_the_amulet_grants_flame_spell_charges():
+    final = _run(["go north", "go east", "take ancient amulet"])
+    assert final["spell_charges"] == scenario.FLAME_SPELL_CHARGES
+
+
+def test_casting_the_flame_spell_consumes_a_charge():
+    final = _run(["go north", "go east", "take ancient amulet", "go west", "cast flame at goblin"])
+    assert final["spell_charges"] == scenario.FLAME_SPELL_CHARGES - 1
+
+
+def test_flame_spell_charges_do_not_go_negative():
+    # Constructed directly (amulet already held, 0 charges left) rather than
+    # scripted from scratch: how many casts it actually takes to defeat the
+    # goblin is randomized, and once it's dead, casting again correctly stops
+    # consuming charges at all ("nothing here to burn") - so scripting several
+    # casts in a row can't reliably exercise the "0 charges left" guard itself.
+    graph = build_test_graph(["cast flame at goblin"])
+    state = new_game_state()
+    state.location = "guard_room"
+    state.quest_flags[scenario.KEY_FLAG] = True
+    state.spell_charges = 0
+    final = graph.invoke(state, {"configurable": {"thread_id": "t"}})
+    assert final["spell_charges"] == 0
+
+
+def test_resolve_combat_applies_the_fire_weakness_bonus(monkeypatch):
+    monkeypatch.setattr(graph_module, "resolve_attack", lambda **kwargs: AttackResult(hit=True, damage=4))
+    working = new_game_state()
+    stats = scenario.MONSTERS["crystal golem"]
+
+    result = graph_module._resolve_combat(
+        working,
+        "crystal golem",
+        stats,
+        attacker_bonus=0,
+        damage_range=(1, 1),
+        hit_verb="hit",
+        desc_hit="",
+        miss_verb="miss",
+        desc_miss="",
+        bonus_damage=scenario.FLAME_SPELL_WEAKNESS_BONUS,
+        bonus_note="The ice cracks and shatters under the heat.",
+    )
+
+    assert working.monster_hp["crystal golem"] == stats.hp - (4 + scenario.FLAME_SPELL_WEAKNESS_BONUS)
+    assert "The ice cracks and shatters under the heat." in result
