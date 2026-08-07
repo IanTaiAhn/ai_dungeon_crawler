@@ -15,6 +15,8 @@ _WIN_SCRIPT = [
     "attack goblin",  # a few extra in case combat rolls run long
     "go east",
     "take ancient amulet",
+    "go down",
+    "take frostbound crown",
 ]
 
 

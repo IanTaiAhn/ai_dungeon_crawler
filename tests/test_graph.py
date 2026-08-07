@@ -11,6 +11,17 @@ def _run(script, thread_id="t", narrator=None, lore_store=None, persona=None, ch
     return graph.invoke(new_game_state(persona=persona), config)
 
 
+def test_frozen_cavern_is_sealed_without_the_amulet():
+    final = _run(
+        [
+            "go north",
+            "go east",
+            "go down",
+        ]
+    )
+    assert final["location"] == "treasure_room"
+
+
 def test_full_playthrough_can_be_won():
     final = _run(
         [
@@ -21,11 +32,14 @@ def test_full_playthrough_can_be_won():
             "attack goblin",
             "go east",
             "take ancient amulet",
+            "go down",
+            "take frostbound crown",
         ]
     )
     assert final["outcome"] == "win"
-    assert final["location"] == "treasure_room"
+    assert final["location"] == "frozen_cavern"
     assert "ancient amulet" in final["inventory"]
+    assert "frostbound crown" in final["inventory"]
 
 
 def test_moving_into_a_wall_does_not_change_location():

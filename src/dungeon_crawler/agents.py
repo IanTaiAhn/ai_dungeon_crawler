@@ -101,8 +101,11 @@ class HumanActionProvider:
 
         room = scenario.DUNGEON[state.location]
 
-        # Movement options
+        # Movement options (skip exits sealed behind a quest flag we don't have yet)
         for direction, dest in sorted(room.exits.items()):
+            dest_room = scenario.DUNGEON[dest]
+            if dest_room.requires_flag and not state.quest_flags.get(dest_room.requires_flag):
+                continue
             dest_name = dest.replace("_", " ")
             actions.append((
                 f"Go {direction} to {dest_name}",

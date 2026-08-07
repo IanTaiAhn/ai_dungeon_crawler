@@ -120,11 +120,15 @@ def build_graph(
         if action.intent is Intent.MOVE:
             direction = (action.direction or "").lower()
             dest = room.exits.get(direction)
-            if dest:
-                working.location = dest
-                result = f"You move {direction} into the {dest.replace('_', ' ')}."
-            else:
+            if dest is None:
                 result = f"You can't go {direction} from here."
+            else:
+                dest_room = scenario.DUNGEON[dest]
+                if dest_room.requires_flag and not working.quest_flags.get(dest_room.requires_flag):
+                    result = "A ward of old magic seals the way - something you're missing keeps it shut."
+                else:
+                    working.location = dest
+                    result = f"You move {direction} into the {dest.replace('_', ' ')}."
 
         elif action.intent is Intent.ATTACK:
             monster = room.monster
@@ -179,7 +183,9 @@ def build_graph(
             available = working.room_items.get(working.location, [])
             if item and take_item(working, item, available):
                 result = f"You take the {item}."
-                if item == scenario.WIN_ITEM:
+                if item == scenario.KEY_ITEM:
+                    working.quest_flags[scenario.KEY_FLAG] = True
+                elif item == scenario.WIN_ITEM:
                     working.quest_flags[scenario.WIN_FLAG] = True
             else:
                 result = f"There's no {item or 'that'} here to take."

@@ -52,6 +52,11 @@ ITEMS: dict[str, ItemDefinition] = {
         item_type=ItemType.QUEST,
         description="A mystical amulet that pulses with ancient power"
     ),
+    "frostbound crown": ItemDefinition(
+        name="frostbound crown",
+        item_type=ItemType.QUEST,
+        description="A circlet of black ice that never melts, humming with cold authority"
+    ),
 }
 
 
