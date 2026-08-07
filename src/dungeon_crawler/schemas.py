@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 class Intent(str, Enum):
     MOVE = "move"
     ATTACK = "attack"
+    CAST_SPELL = "cast_spell"
     USE_ITEM = "use_item"
     TAKE_ITEM = "take_item"
     TALK = "talk"
@@ -52,6 +53,7 @@ class GameState(BaseModel):
     turn_count: int = 0
     max_turns: int = 40
     quest_flags: dict[str, bool] = Field(default_factory=dict)
+    spell_charges: int = Field(default=0, description="Remaining flame-spell casts; granted on recovering the amulet")
     persona: PersonaConfig | None = Field(default=None, description="None means a human is playing")
     room_items: dict[str, list[str]] = Field(default_factory=dict, description="Items still lying in each room, keyed by room name")
     monster_hp: dict[str, int] = Field(default_factory=dict, description="Current HP of each named monster, keyed by monster name")

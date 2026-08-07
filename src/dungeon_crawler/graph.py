@@ -56,6 +56,49 @@ from dungeon_crawler.schemas import GameState, Intent, PersonaConfig
 
 _RETRIEVAL_K = 3
 _APPROVE_RESPONSES = {"", "approve", "ok", "yes", "y"}
+_PLAYER_AC = 8
+
+
+def _resolve_combat(
+    working: GameState,
+    monster: str,
+    stats: scenario.Monster,
+    *,
+    attacker_bonus: int,
+    damage_range: tuple[int, int],
+    hit_verb: str,
+    desc_hit: str,
+    miss_verb: str,
+    desc_miss: str,
+    bonus_damage: int = 0,
+    bonus_note: str = "",
+) -> str:
+    """Shared by ATTACK and CAST_SPELL: roll an attack against `monster`,
+    apply damage/defeat, then let it retaliate if still alive. Mutates
+    `working.monster_hp`/`working.hp` in place; returns the narratable result.
+    """
+    current_hp = working.monster_hp.get(monster, scenario.monster_max_hp(monster))
+    atk = resolve_attack(attacker_bonus=attacker_bonus, target_ac=stats.ac, damage_range=damage_range)
+
+    if atk.hit:
+        damage = atk.damage + bonus_damage
+        current_hp -= damage
+        working.monster_hp[monster] = current_hp
+        result = f"You {hit_verb} the {monster}{desc_hit} for {damage}."
+        if bonus_note:
+            result += f" {bonus_note}"
+        if current_hp <= 0:
+            result += f" The {monster} is defeated."
+    else:
+        result = f"You {miss_verb} the {monster}{desc_miss} and miss."
+
+    if current_hp > 0:
+        retaliation = resolve_attack(attacker_bonus=stats.attack_bonus, target_ac=_PLAYER_AC, damage_range=stats.damage_range)
+        if retaliation.hit:
+            apply_damage_to_player(working, retaliation.damage)
+            result += f" The {monster} hits you back for {retaliation.damage}."
+
+    return result
 
 
 def build_graph(
@@ -88,7 +131,7 @@ def build_graph(
         if checkin_every is None:
             return {}
         proposed = state.last_action
-        is_combat = proposed.intent is Intent.ATTACK
+        is_combat = proposed.intent in (Intent.ATTACK, Intent.CAST_SPELL)
         upcoming_turn = state.turn_count + 1
         on_schedule = checkin_every > 0 and upcoming_turn % checkin_every == 0
         if not (is_combat or on_schedule):
@@ -147,36 +190,46 @@ def build_graph(
                 base_attack = 1  # Base attack bonus when unarmed
                 base_damage_range = (1, 3)  # Base damage when unarmed
 
-                final_attack_bonus = base_attack + attack_bonus
-                final_damage_range = (
-                    base_damage_range[0] + damage_bonus,
-                    base_damage_range[1] + damage_bonus
+                result = _resolve_combat(
+                    working,
+                    monster,
+                    stats,
+                    attacker_bonus=base_attack + attack_bonus,
+                    damage_range=(base_damage_range[0] + damage_bonus, base_damage_range[1] + damage_bonus),
+                    hit_verb="hit",
+                    desc_hit=f" with the {weapon_name}" if weapon_name else " with your bare hands",
+                    miss_verb="swing at",
+                    desc_miss=f" with the {weapon_name}" if weapon_name else "",
                 )
 
-                atk = resolve_attack(
-                    attacker_bonus=final_attack_bonus,
-                    target_ac=stats.ac,
-                    damage_range=final_damage_range
+        elif action.intent is Intent.CAST_SPELL:
+            monster = room.monster
+            current_hp = working.monster_hp.get(monster, scenario.monster_max_hp(monster)) if monster else 0
+            if not working.quest_flags.get(scenario.KEY_FLAG):
+                result = "You don't know any spells yet."
+            elif working.spell_charges <= 0:
+                result = "You reach for the flame, but nothing answers - you're out of charges."
+            elif not monster or current_hp <= 0:
+                result = "There's nothing here to burn."
+            else:
+                working.spell_charges -= 1
+                stats = scenario.MONSTERS[monster]
+                bonus_damage = scenario.FLAME_SPELL_WEAKNESS_BONUS if stats.weak_to_fire else 0
+                bonus_note = "The ice cracks and shatters under the heat." if stats.weak_to_fire else ""
+
+                result = _resolve_combat(
+                    working,
+                    monster,
+                    stats,
+                    attacker_bonus=scenario.FLAME_SPELL_ATTACK_BONUS,
+                    damage_range=scenario.FLAME_SPELL_DAMAGE_RANGE,
+                    hit_verb="hit",
+                    desc_hit=" with a bolt of flame",
+                    miss_verb="hurl flame at",
+                    desc_miss="",
+                    bonus_damage=bonus_damage,
+                    bonus_note=bonus_note,
                 )
-
-                if atk.hit:
-                    current_hp -= atk.damage
-                    working.monster_hp[monster] = current_hp
-                    weapon_desc = f" with the {weapon_name}" if weapon_name else " with your bare hands"
-                    result = f"You hit the {monster}{weapon_desc} for {atk.damage}."
-                    if current_hp <= 0:
-                        result += f" The {monster} is defeated."
-                else:
-                    weapon_desc = f" with the {weapon_name}" if weapon_name else ""
-                    result = f"You swing at the {monster}{weapon_desc} and miss."
-
-                if current_hp > 0:
-                    retaliation = resolve_attack(
-                        attacker_bonus=stats.attack_bonus, target_ac=8, damage_range=stats.damage_range
-                    )
-                    if retaliation.hit:
-                        apply_damage_to_player(working, retaliation.damage)
-                        result += f" The {monster} hits you back for {retaliation.damage}."
 
         elif action.intent is Intent.TAKE_ITEM:
             item = action.target
@@ -185,6 +238,7 @@ def build_graph(
                 result = f"You take the {item}."
                 if item == scenario.KEY_ITEM:
                     working.quest_flags[scenario.KEY_FLAG] = True
+                    working.spell_charges = scenario.FLAME_SPELL_CHARGES
                 elif item == scenario.WIN_ITEM:
                     working.quest_flags[scenario.WIN_FLAG] = True
             else:
@@ -224,6 +278,7 @@ def build_graph(
                 "monster_hp",
                 "inventory",
                 "quest_flags",
+                "spell_charges",
                 "last_engine_result",
                 "turn_count",
             }
