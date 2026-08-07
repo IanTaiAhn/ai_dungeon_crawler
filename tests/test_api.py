@@ -69,6 +69,8 @@ def test_full_playthrough_reaches_a_terminal_outcome(client):
         "attack goblin",
         "go east",
         "take ancient amulet",
+        "go down",
+        "take frostbound crown",
     ] + ["wait"] * 40
     result = None
     for action in script:
