@@ -421,6 +421,7 @@ C:\Users\ianta\ai_dungeon_crawler\
 - **`running-locally.md`** - Step-by-step setup guide
 - **`ai-dungeon-master-project-plan.md`** - Original design document with 7-layer breakdown
 - **`compute-requirements.md`** - Hardware specs and model sizing guidance
+- **`AGENT-TAXONOMY.md`** - Which of Anthropic's six workflow/agent patterns this project follows, and why
 
 ---
 
