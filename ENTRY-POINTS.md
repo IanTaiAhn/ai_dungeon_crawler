@@ -89,6 +89,58 @@ Neither one is "the real" way to play - they're two different integration
 patterns living side by side in the same codebase, both sitting on top of
 the identical compiled graph.
 
+## `sessions.py` is not MCP-only - it's shared by the API and MCP surfaces
+
+It's tempting to read "`mcp_server.py` goes through `sessions.py`'s
+`GameServer`" as "`sessions.py` exists for MCP." It doesn't -
+`api.py` uses the exact same `GameServer`:
+
+```python
+# api.py
+from dungeon_crawler.sessions import GameNotFoundError, GameServer
+...
+server = GameServer(narrator, embedder, lore_dir=lore_dir, db_path=db_path, lore_collection_name="lore")
+```
+
+```python
+# mcp_server.py
+from dungeon_crawler.sessions import GameNotFoundError, GameServer
+...
+server = GameServer(narrator, embedder, lore_dir=lore_dir, db_path=db_path, lore_collection_name="lore")
+```
+
+`sessions.py`'s own docstring says as much: *"Shared game-session management
+for the serving layer (FastAPI + MCP)."* It exists because the API and MCP
+server have the same shape of problem - stateless request/response calls,
+many concurrently active games addressed by `thread_id`, and turns that must
+resume via a real `interrupt()`/`Command(resume=...)` rather than block on a
+local `input()`. `GameServer` was written once to solve that for both.
+
+`cli.py` is the odd one out: it never touches `sessions.py` at all. It calls
+`build_graph()` directly, because a single long-lived terminal process
+holding one game in memory doesn't need the multi-game/resumable-per-request
+abstraction `GameServer` provides.
+
+### File-by-file, by mode
+
+| File | CLI (human) | CLI (`--persona`) | HTTP API | MCP server |
+|---|:---:|:---:|:---:|:---:|
+| `schemas.py`, `graph.py`, `game_logic.py`, `items.py`, `scenario.py`, `parser.py`, `checkpointing.py` | Y | Y | Y | Y |
+| `llm.py` (`Narrator`), `retrieval.py` (`Embedder`/`LoreStore`) | Y | Y | Y | Y |
+| `observability.py` (`trace_config`) | Y | Y | Y (via `sessions.py`) | Y (via `sessions.py`) |
+| `agents.py`: `HumanActionProvider` | Y | - | - | - |
+| `agents.py`: `OllamaPlayerAgent` | - | Y | - | - |
+| `agents.py`: `InterruptActionProvider` | - | - | Y | Y |
+| `sessions.py` (`GameServer`) | - | - | Y | Y |
+| `api.py` | - | - | Y | - |
+| `mcp_server.py` | - | - | - | Y |
+
+The top two rows are the real game engine - every mode runs the identical
+`build_graph()` output. Everything below that is which turn-source
+(`ActionProvider`) is wired in, and whether the surface needs `GameServer`'s
+multi-game bookkeeping or just calls `build_graph()` straight, like `cli.py`
+does.
+
 ## Quick reference: what to run for what
 
 ```bash
