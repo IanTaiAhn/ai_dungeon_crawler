@@ -25,7 +25,7 @@ def test_frozen_cavern_is_sealed_without_the_amulet():
     assert final["location"] == "treasure_room"
 
 
-def test_full_playthrough_can_be_won():
+def test_taking_the_crown_does_not_win_by_itself():
     final = _run(
         [
             "take rusty sword",
@@ -38,11 +38,87 @@ def test_full_playthrough_can_be_won():
             "go down",
             "take frostbound crown",
         ]
+        + ["wait"] * 30
     )
-    assert final["outcome"] == "win"
+    assert final["outcome"] == "lose"  # ran out the turn clock without placing the crown
     assert final["location"] == "frozen_cavern"
     assert "ancient amulet" in final["inventory"]
     assert "frostbound crown" in final["inventory"]
+    assert final["quest_flags"][scenario.CROWN_FLAG] is True
+
+
+def test_volcanic_passage_is_sealed_without_the_crown():
+    final = _run(
+        [
+            "go north",
+            "go east",
+            "take ancient amulet",
+            "go down",
+            "go down",
+        ]
+    )
+    assert final["location"] == "frozen_cavern"
+
+
+def test_full_playthrough_can_be_won():
+    final = _run(
+        [
+            "take rusty sword",
+            "go north",
+            "attack goblin",
+            "attack goblin",
+            "attack goblin",
+            "go east",
+            "take ancient amulet",
+            "go down",
+            "take frostbound crown",
+            "go down",
+            "go down",
+            "go down",
+            "place frostbound crown",
+        ]
+    )
+    assert final["outcome"] == "win"
+    assert final["location"] == "volcanic_heart"
+    assert "ancient amulet" in final["inventory"]
+    assert "frostbound crown" not in final["inventory"]
+    assert final["quest_flags"][scenario.WIN_FLAG] is True
+
+
+def test_placing_the_crown_before_reaching_the_hollow_does_nothing():
+    final = _run(
+        [
+            "go north",
+            "go east",
+            "take ancient amulet",
+            "go down",
+            "take frostbound crown",
+            "place frostbound crown",
+        ]
+        + ["wait"] * 34
+    )
+    assert final["outcome"] == "lose"  # ran out the turn clock; the crown was never actually placed
+    assert "frostbound crown" in final["inventory"]
+
+
+def test_placing_the_wrong_item_fails_gracefully():
+    final = _run(
+        [
+            "go north",
+            "go east",
+            "take ancient amulet",
+            "go down",
+            "take frostbound crown",
+            "go down",
+            "go down",
+            "go down",
+            "place ancient amulet",
+        ]
+        + ["wait"] * 31
+    )
+    assert final["outcome"] == "lose"  # ran out the turn clock; the amulet can't be placed here
+    assert final["location"] == "volcanic_heart"
+    assert "ancient amulet" in final["inventory"]
 
 
 def test_moving_into_a_wall_does_not_change_location():
@@ -139,3 +215,60 @@ def test_resolve_combat_applies_the_fire_weakness_bonus(monkeypatch):
 
     assert working.monster_hp["crystal golem"] == stats.hp - (4 + scenario.FLAME_SPELL_WEAKNESS_BONUS)
     assert "The ice cracks and shatters under the heat." in result
+
+
+def test_ice_blast_does_nothing_without_the_crown():
+    graph = build_test_graph(["blast"])
+    state = new_game_state()
+    state.location = "treasure_room"
+    state.hp = 2
+    final = graph.invoke(state, {"configurable": {"thread_id": "t"}})
+    assert final["hp"] == 2
+    assert scenario.ICE_BLAST_FLAG not in final["quest_flags"]
+
+
+def test_ice_blast_does_nothing_above_the_hp_threshold():
+    graph = build_test_graph(["blast"])
+    state = new_game_state()
+    state.location = "treasure_room"
+    state.hp = 5
+    state.inventory = [scenario.WIN_ITEM]
+    final = graph.invoke(state, {"configurable": {"thread_id": "t"}})
+    assert final["hp"] == 5
+    assert scenario.ICE_BLAST_FLAG not in final["quest_flags"]
+
+
+def test_ice_blast_heals_on_first_use_when_critical_and_carrying_the_crown():
+    graph = build_test_graph(["blast"])
+    state = new_game_state()
+    state.location = "treasure_room"  # no monster here, so this isolates the heal from combat
+    state.hp = 2
+    state.inventory = [scenario.WIN_ITEM]
+    final = graph.invoke(state, {"configurable": {"thread_id": "t"}})
+    assert final["hp"] == 2 + scenario.ICE_BLAST_HEAL_AMOUNT
+    assert final["quest_flags"][scenario.ICE_BLAST_FLAG] is True
+
+
+def test_ice_blast_does_not_heal_a_second_time():
+    graph = build_test_graph(["blast"])
+    state = new_game_state()
+    state.location = "treasure_room"
+    state.hp = 2
+    state.inventory = [scenario.WIN_ITEM]
+    state.quest_flags[scenario.ICE_BLAST_FLAG] = True  # already saved the player once before
+    final = graph.invoke(state, {"configurable": {"thread_id": "t"}})
+    assert final["hp"] == 2
+
+
+def test_ice_blast_functions_as_an_attack_against_the_room_monster(monkeypatch):
+    # A guaranteed one-hit kill sidesteps retaliation, so the resulting HP is
+    # attributable entirely to the ice blast's own heal - no combat randomness.
+    monkeypatch.setattr(graph_module, "resolve_attack", lambda **kwargs: AttackResult(hit=True, damage=99))
+    graph = build_test_graph(["blast"])
+    state = new_game_state()
+    state.location = "guard_room"
+    state.hp = 2
+    state.inventory = [scenario.WIN_ITEM]
+    final = graph.invoke(state, {"configurable": {"thread_id": "t"}})
+    assert final["monster_hp"]["goblin"] <= 0
+    assert final["hp"] == 2 + scenario.ICE_BLAST_HEAL_AMOUNT

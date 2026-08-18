@@ -17,6 +17,10 @@ _WIN_SCRIPT = [
     "take ancient amulet",
     "go down",
     "take frostbound crown",
+    "go down",
+    "go down",
+    "go down",
+    "place frostbound crown",
 ]
 
 

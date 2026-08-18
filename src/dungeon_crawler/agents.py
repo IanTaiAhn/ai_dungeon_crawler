@@ -30,7 +30,11 @@ PLAYER_AGENT_SYSTEM_PROMPT = (
     "If you're carrying the amulet, cast_spell channels its flame ward "
     "against whatever's here - stronger than a physical attack but limited "
     "by the charge count reported below, so weigh unlimited attack against "
-    "scarce cast_spell rather than always picking one."
+    "scarce cast_spell rather than always picking one.\n"
+    "If you're carrying the frostbound crown and your HP is critical, "
+    "ice_blast becomes available - unlimited, and the first time you ever "
+    "use it, it also restores HP before it strikes. Use it as your escape "
+    "from a near-death situation rather than saving it."
 )
 
 
@@ -91,6 +95,8 @@ class HumanActionProvider:
         print(f"Inventory: {', '.join(state.inventory) if state.inventory else '(empty)'}")
         if state.quest_flags.get(scenario.KEY_FLAG):
             print(f"Flame spell charges: {state.spell_charges}")
+        if scenario.WIN_ITEM in state.inventory and state.hp <= scenario.ICE_BLAST_HP_THRESHOLD:
+            print("The frostbound crown pulses violently - its ice blast is ready.")
         print(f"Turn: {state.turn_count}/{state.max_turns}")
 
         # Show monster status if present
@@ -137,6 +143,17 @@ class HumanActionProvider:
                         )
                     ))
 
+        # Ice blast option: the crown answers once carried and HP is critical.
+        # Heals the first time it's ever used regardless of whether there's
+        # anything here to fight, so it's offered even without a living monster.
+        if scenario.WIN_ITEM in state.inventory and state.hp <= scenario.ICE_BLAST_HP_THRESHOLD:
+            first_use = not state.quest_flags.get(scenario.ICE_BLAST_FLAG)
+            suffix = " (restores HP, first use)" if first_use else ""
+            actions.append((
+                f"Unleash the crown's ice blast{suffix}",
+                PlayerAction(intent=Intent.ICE_BLAST, target=room.monster, raw_text="unleash ice blast")
+            ))
+
         # Take item options (items in current room)
         room_items = state.room_items.get(state.location, [])
         for item in room_items:
@@ -152,6 +169,14 @@ class HumanActionProvider:
                     f"Use {item}",
                     PlayerAction(intent=Intent.USE_ITEM, target=item, raw_text=f"use {item}")
                 ))
+
+        # Place item option (only when this room has a spot for what we're carrying)
+        if room.accepts_item and room.accepts_item in state.inventory:
+            item = room.accepts_item
+            actions.append((
+                f"Place the {item}",
+                PlayerAction(intent=Intent.PLACE_ITEM, target=item, raw_text=f"place {item}")
+            ))
 
         # Always available actions
         actions.append((
@@ -247,6 +272,13 @@ def _build_agent_prompt(state: GameState) -> str:
     ]
     if state.quest_flags.get(scenario.KEY_FLAG):
         lines.append(f"Flame spell charges remaining: {state.spell_charges}")
+    if scenario.WIN_ITEM in state.inventory and state.hp <= scenario.ICE_BLAST_HP_THRESHOLD:
+        first_use = not state.quest_flags.get(scenario.ICE_BLAST_FLAG)
+        lines.append(
+            "The frostbound crown's ice_blast is available right now"
+            + (" and will restore HP the moment you use it" if first_use else "")
+            + "."
+        )
     if state.retrieved_lore:
         lines.append("Relevant lore/history:")
         lines.extend(f"- {chunk}" for chunk in state.retrieved_lore)

@@ -40,6 +40,10 @@ _DRY_RUN_SCRIPT = [
     "cast flame at crystal golem",
     "cast flame at crystal golem",
     "take frostbound crown",
+    "go down",
+    "go down",
+    "go down",
+    "place frostbound crown",
 ]
 
 
