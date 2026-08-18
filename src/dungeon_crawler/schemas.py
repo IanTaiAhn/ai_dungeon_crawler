@@ -13,6 +13,7 @@ class Intent(str, Enum):
     CAST_SPELL = "cast_spell"
     USE_ITEM = "use_item"
     TAKE_ITEM = "take_item"
+    PLACE_ITEM = "place_item"
     TALK = "talk"
     INSPECT = "inspect"
     FLEE = "flee"

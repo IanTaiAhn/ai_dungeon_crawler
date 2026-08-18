@@ -16,6 +16,7 @@ class Room:
     starting_items: list[str] = field(default_factory=list)
     monster: str | None = None
     requires_flag: str | None = None  # gates entry until state.quest_flags[requires_flag] is True
+    accepts_item: str | None = None  # item that can be PLACE_ITEM'd here, e.g. an altar or pedestal
 
 
 @dataclass(frozen=True)
@@ -31,12 +32,17 @@ class Monster:
 START_ROOM = "entrance"
 
 # The amulet doesn't win the game by itself - it's a key that resonates with
-# the sealed stairwell down to the frozen cavern. KEY_FLAG gates that door;
-# WIN_FLAG (set by taking the true relic below) is what actually ends the game.
+# the sealed stairwell down to the frozen cavern. KEY_FLAG gates that door.
+# Recovering the crown from the frozen cavern isn't the ending either: the
+# crown itself resonates with a sealed way down into the volcanic depths
+# (CROWN_FLAG gates that door), and the game is only actually won by carrying
+# the crown to the volcanic heart and setting it into the stone hollow there
+# (WIN_FLAG), which is what check_end_state watches for.
 KEY_ITEM = "ancient amulet"
 KEY_FLAG = "amulet_recovered"
 WIN_ITEM = "frostbound crown"
-WIN_FLAG = "crown_recovered"
+CROWN_FLAG = "crown_recovered"
+WIN_FLAG = "crown_placed"
 
 # The amulet also carries a dormant flame ward: recovering it grants a
 # limited number of flame-spell casts, a stronger-but-scarce alternative to
@@ -72,16 +78,50 @@ DUNGEON: dict[str, Room] = {
             "crawls up walls of black ice, and a crystal golem stands watch over a frostbound crown "
             "set into a pillar of ice at the cavern's heart."
         ),
-        exits={"up": "treasure_room"},
+        exits={"up": "treasure_room", "down": "volcanic_passage"},
         starting_items=[WIN_ITEM],
         monster="crystal golem",
         requires_flag=KEY_FLAG,
+    ),
+    "volcanic_passage": Room(
+        name="volcanic_passage",
+        description=(
+            "The frost gives way without warning: a crack in the cavern floor, warmed by the crown's "
+            "own heat, opens onto a narrow passage of black rock. Heat shimmers off the walls and a "
+            "distant orange glow pulses from somewhere below - a magma hound, molten cracks veining "
+            "its hide, blocks the way down."
+        ),
+        exits={"up": "frozen_cavern", "down": "volcanic_depths"},
+        monster="magma hound",
+        requires_flag=CROWN_FLAG,
+    ),
+    "volcanic_depths": Room(
+        name="volcanic_depths",
+        description=(
+            "Rivers of lava crawl between broken black columns, the heat pressing in from every side. "
+            "An ember wraith peels itself off a burning wall, drawn by the cold still clinging to the "
+            "crown in your pack."
+        ),
+        exits={"up": "volcanic_passage", "down": "volcanic_heart"},
+        monster="ember wraith",
+    ),
+    "volcanic_heart": Room(
+        name="volcanic_heart",
+        description=(
+            "The passage opens into a vast volcanic chamber, its ceiling lost in heat-haze, a lake of "
+            "lava churning below a stone ledge. At the ledge's center, worn smooth by something that "
+            "stood here long before you, is a hollow shaped for exactly one thing: a crown."
+        ),
+        exits={"up": "volcanic_depths"},
+        accepts_item=WIN_ITEM,
     ),
 }
 
 MONSTERS: dict[str, Monster] = {
     "goblin": Monster(name="goblin", hp=7, attack_bonus=2, ac=8, damage_range=(1, 4)),
     "crystal golem": Monster(name="crystal golem", hp=14, attack_bonus=3, ac=13, damage_range=(2, 6), weak_to_fire=True),
+    "magma hound": Monster(name="magma hound", hp=10, attack_bonus=3, ac=11, damage_range=(2, 5)),
+    "ember wraith": Monster(name="ember wraith", hp=16, attack_bonus=4, ac=12, damage_range=(3, 7)),
 }
 
 

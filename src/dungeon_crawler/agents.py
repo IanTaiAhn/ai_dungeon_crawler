@@ -153,6 +153,14 @@ class HumanActionProvider:
                     PlayerAction(intent=Intent.USE_ITEM, target=item, raw_text=f"use {item}")
                 ))
 
+        # Place item option (only when this room has a spot for what we're carrying)
+        if room.accepts_item and room.accepts_item in state.inventory:
+            item = room.accepts_item
+            actions.append((
+                f"Place the {item}",
+                PlayerAction(intent=Intent.PLACE_ITEM, target=item, raw_text=f"place {item}")
+            ))
+
         # Always available actions
         actions.append((
             "Inspect the area",

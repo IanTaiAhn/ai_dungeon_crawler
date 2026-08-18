@@ -25,7 +25,7 @@ def test_frozen_cavern_is_sealed_without_the_amulet():
     assert final["location"] == "treasure_room"
 
 
-def test_full_playthrough_can_be_won():
+def test_taking_the_crown_does_not_win_by_itself():
     final = _run(
         [
             "take rusty sword",
@@ -38,11 +38,87 @@ def test_full_playthrough_can_be_won():
             "go down",
             "take frostbound crown",
         ]
+        + ["wait"] * 30
     )
-    assert final["outcome"] == "win"
+    assert final["outcome"] == "lose"  # ran out the turn clock without placing the crown
     assert final["location"] == "frozen_cavern"
     assert "ancient amulet" in final["inventory"]
     assert "frostbound crown" in final["inventory"]
+    assert final["quest_flags"][scenario.CROWN_FLAG] is True
+
+
+def test_volcanic_passage_is_sealed_without_the_crown():
+    final = _run(
+        [
+            "go north",
+            "go east",
+            "take ancient amulet",
+            "go down",
+            "go down",
+        ]
+    )
+    assert final["location"] == "frozen_cavern"
+
+
+def test_full_playthrough_can_be_won():
+    final = _run(
+        [
+            "take rusty sword",
+            "go north",
+            "attack goblin",
+            "attack goblin",
+            "attack goblin",
+            "go east",
+            "take ancient amulet",
+            "go down",
+            "take frostbound crown",
+            "go down",
+            "go down",
+            "go down",
+            "place frostbound crown",
+        ]
+    )
+    assert final["outcome"] == "win"
+    assert final["location"] == "volcanic_heart"
+    assert "ancient amulet" in final["inventory"]
+    assert "frostbound crown" not in final["inventory"]
+    assert final["quest_flags"][scenario.WIN_FLAG] is True
+
+
+def test_placing_the_crown_before_reaching_the_hollow_does_nothing():
+    final = _run(
+        [
+            "go north",
+            "go east",
+            "take ancient amulet",
+            "go down",
+            "take frostbound crown",
+            "place frostbound crown",
+        ]
+        + ["wait"] * 34
+    )
+    assert final["outcome"] == "lose"  # ran out the turn clock; the crown was never actually placed
+    assert "frostbound crown" in final["inventory"]
+
+
+def test_placing_the_wrong_item_fails_gracefully():
+    final = _run(
+        [
+            "go north",
+            "go east",
+            "take ancient amulet",
+            "go down",
+            "take frostbound crown",
+            "go down",
+            "go down",
+            "go down",
+            "place ancient amulet",
+        ]
+        + ["wait"] * 31
+    )
+    assert final["outcome"] == "lose"  # ran out the turn clock; the amulet can't be placed here
+    assert final["location"] == "volcanic_heart"
+    assert "ancient amulet" in final["inventory"]
 
 
 def test_moving_into_a_wall_does_not_change_location():

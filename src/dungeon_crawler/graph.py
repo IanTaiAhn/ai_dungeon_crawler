@@ -240,9 +240,26 @@ def build_graph(
                     working.quest_flags[scenario.KEY_FLAG] = True
                     working.spell_charges = scenario.FLAME_SPELL_CHARGES
                 elif item == scenario.WIN_ITEM:
-                    working.quest_flags[scenario.WIN_FLAG] = True
+                    working.quest_flags[scenario.CROWN_FLAG] = True
             else:
                 result = f"There's no {item or 'that'} here to take."
+
+        elif action.intent is Intent.PLACE_ITEM:
+            item = action.target
+            if item and item in working.inventory and room.accepts_item == item:
+                working.inventory.remove(item)
+                working.quest_flags[scenario.WIN_FLAG] = True
+                result = (
+                    f"You set the {item} into the waiting hollow. Its cold breaks at last, spilling "
+                    "outward - lava dims and skins over with black stone, cracks knit shut, and green "
+                    "shoots push up through the cooling rock until the chamber stands transformed into "
+                    "a lush, quiet paradise. The journey finally catches up with you, and you lie down "
+                    "in the new grass for a well-earned nap."
+                )
+            elif item and item not in working.inventory:
+                result = f"You don't have a {item} to place."
+            else:
+                result = f"There's nowhere here to place the {item or 'that'}."
 
         elif action.intent is Intent.USE_ITEM:
             item = action.target

@@ -97,6 +97,10 @@ def test_run_persona_playthrough_returns_a_scored_result():
         "take ancient amulet",
         "go down",
         "take frostbound crown",
+        "go down",
+        "go down",
+        "go down",
+        "place frostbound crown",
     ]
     lore_store = LoreStore(MockEmbedder())
 
