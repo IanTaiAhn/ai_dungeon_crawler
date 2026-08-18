@@ -215,3 +215,60 @@ def test_resolve_combat_applies_the_fire_weakness_bonus(monkeypatch):
 
     assert working.monster_hp["crystal golem"] == stats.hp - (4 + scenario.FLAME_SPELL_WEAKNESS_BONUS)
     assert "The ice cracks and shatters under the heat." in result
+
+
+def test_ice_blast_does_nothing_without_the_crown():
+    graph = build_test_graph(["blast"])
+    state = new_game_state()
+    state.location = "treasure_room"
+    state.hp = 2
+    final = graph.invoke(state, {"configurable": {"thread_id": "t"}})
+    assert final["hp"] == 2
+    assert scenario.ICE_BLAST_FLAG not in final["quest_flags"]
+
+
+def test_ice_blast_does_nothing_above_the_hp_threshold():
+    graph = build_test_graph(["blast"])
+    state = new_game_state()
+    state.location = "treasure_room"
+    state.hp = 5
+    state.inventory = [scenario.WIN_ITEM]
+    final = graph.invoke(state, {"configurable": {"thread_id": "t"}})
+    assert final["hp"] == 5
+    assert scenario.ICE_BLAST_FLAG not in final["quest_flags"]
+
+
+def test_ice_blast_heals_on_first_use_when_critical_and_carrying_the_crown():
+    graph = build_test_graph(["blast"])
+    state = new_game_state()
+    state.location = "treasure_room"  # no monster here, so this isolates the heal from combat
+    state.hp = 2
+    state.inventory = [scenario.WIN_ITEM]
+    final = graph.invoke(state, {"configurable": {"thread_id": "t"}})
+    assert final["hp"] == 2 + scenario.ICE_BLAST_HEAL_AMOUNT
+    assert final["quest_flags"][scenario.ICE_BLAST_FLAG] is True
+
+
+def test_ice_blast_does_not_heal_a_second_time():
+    graph = build_test_graph(["blast"])
+    state = new_game_state()
+    state.location = "treasure_room"
+    state.hp = 2
+    state.inventory = [scenario.WIN_ITEM]
+    state.quest_flags[scenario.ICE_BLAST_FLAG] = True  # already saved the player once before
+    final = graph.invoke(state, {"configurable": {"thread_id": "t"}})
+    assert final["hp"] == 2
+
+
+def test_ice_blast_functions_as_an_attack_against_the_room_monster(monkeypatch):
+    # A guaranteed one-hit kill sidesteps retaliation, so the resulting HP is
+    # attributable entirely to the ice blast's own heal - no combat randomness.
+    monkeypatch.setattr(graph_module, "resolve_attack", lambda **kwargs: AttackResult(hit=True, damage=99))
+    graph = build_test_graph(["blast"])
+    state = new_game_state()
+    state.location = "guard_room"
+    state.hp = 2
+    state.inventory = [scenario.WIN_ITEM]
+    final = graph.invoke(state, {"configurable": {"thread_id": "t"}})
+    assert final["monster_hp"]["goblin"] <= 0
+    assert final["hp"] == 2 + scenario.ICE_BLAST_HEAL_AMOUNT

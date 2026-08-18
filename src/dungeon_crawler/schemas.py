@@ -11,6 +11,7 @@ class Intent(str, Enum):
     MOVE = "move"
     ATTACK = "attack"
     CAST_SPELL = "cast_spell"
+    ICE_BLAST = "ice_blast"
     USE_ITEM = "use_item"
     TAKE_ITEM = "take_item"
     PLACE_ITEM = "place_item"

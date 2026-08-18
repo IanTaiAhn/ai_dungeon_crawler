@@ -52,6 +52,16 @@ FLAME_SPELL_ATTACK_BONUS = 4
 FLAME_SPELL_DAMAGE_RANGE = (3, 6)
 FLAME_SPELL_WEAKNESS_BONUS = 3  # extra damage on a hit against a weak_to_fire monster
 
+# The crown answers a different kind of desperation: once it's in the
+# player's inventory and HP drops to the threshold, its ice blast becomes
+# available. Unlimited (unlike the amulet's flame charges) - but the HP
+# restore only ever fires the first time it's used, tracked via ICE_BLAST_FLAG.
+ICE_BLAST_HP_THRESHOLD = 2
+ICE_BLAST_HEAL_AMOUNT = 5
+ICE_BLAST_ATTACK_BONUS = 4
+ICE_BLAST_DAMAGE_RANGE = (3, 6)
+ICE_BLAST_FLAG = "ice_blast_used"
+
 DUNGEON: dict[str, Room] = {
     "entrance": Room(
         name="entrance",

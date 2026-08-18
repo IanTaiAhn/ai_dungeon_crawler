@@ -131,7 +131,7 @@ def build_graph(
         if checkin_every is None:
             return {}
         proposed = state.last_action
-        is_combat = proposed.intent in (Intent.ATTACK, Intent.CAST_SPELL)
+        is_combat = proposed.intent in (Intent.ATTACK, Intent.CAST_SPELL, Intent.ICE_BLAST)
         upcoming_turn = state.turn_count + 1
         on_schedule = checkin_every > 0 and upcoming_turn % checkin_every == 0
         if not (is_combat or on_schedule):
@@ -230,6 +230,41 @@ def build_graph(
                     bonus_damage=bonus_damage,
                     bonus_note=bonus_note,
                 )
+
+        elif action.intent is Intent.ICE_BLAST:
+            if scenario.WIN_ITEM not in working.inventory:
+                result = "You have nothing that could answer a call like that."
+            elif working.hp > scenario.ICE_BLAST_HP_THRESHOLD:
+                result = "The crown stays cold and still - you're not desperate enough yet."
+            else:
+                healed = not working.quest_flags.get(scenario.ICE_BLAST_FLAG)
+                if healed:
+                    working.quest_flags[scenario.ICE_BLAST_FLAG] = True
+                    working.hp = min(working.max_hp, working.hp + scenario.ICE_BLAST_HEAL_AMOUNT)
+
+                monster = room.monster
+                current_hp = working.monster_hp.get(monster, scenario.monster_max_hp(monster)) if monster else 0
+                if not monster or current_hp <= 0:
+                    result = "There's nothing here to blast."
+                else:
+                    stats = scenario.MONSTERS[monster]
+                    result = _resolve_combat(
+                        working,
+                        monster,
+                        stats,
+                        attacker_bonus=scenario.ICE_BLAST_ATTACK_BONUS,
+                        damage_range=scenario.ICE_BLAST_DAMAGE_RANGE,
+                        hit_verb="hit",
+                        desc_hit=" with a blast of ice",
+                        miss_verb="unleash a blast of ice at",
+                        desc_miss="",
+                    )
+
+                if healed:
+                    result = (
+                        f"The frostbound crown flares white-cold, restoring {scenario.ICE_BLAST_HEAL_AMOUNT} HP. "
+                        + result
+                    )
 
         elif action.intent is Intent.TAKE_ITEM:
             item = action.target

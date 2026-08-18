@@ -20,6 +20,8 @@ _VERB_INTENTS: dict[str, Intent] = {
     "cast": Intent.CAST_SPELL,
     "burn": Intent.CAST_SPELL,
     "ignite": Intent.CAST_SPELL,
+    "blast": Intent.ICE_BLAST,
+    "freeze": Intent.ICE_BLAST,
     "take": Intent.TAKE_ITEM,
     "grab": Intent.TAKE_ITEM,
     "pick": Intent.TAKE_ITEM,
