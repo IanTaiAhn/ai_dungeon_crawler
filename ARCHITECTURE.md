@@ -18,11 +18,12 @@ Think of it as a fully autonomous game where two AIs can play against each other
 ┌─────────────────────────────────────────────────────────────┐
 │                     You (or an AI Persona)                   │
 └────────────────────────┬────────────────────────────────────┘
-                         │ Types: "go north"
+                         │ Picks a menu option, sends free text, or an LLM decides
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                    Parser (parser.py)                        │
-│          Converts text → Intent (MOVE, ATTACK, etc.)         │
+│              ActionProvider (agents.py / parser.py)          │
+│   Menu choice, LLM structured output, or parsed free text    │
+│              -> PlayerAction with an Intent (MOVE, ATTACK...) │
 └────────────────────────┬────────────────────────────────────┘
                          │ PlayerAction
                          ▼
@@ -90,10 +91,10 @@ This keeps the game fair and debuggable.
 uv run dungeon-crawler
 ```
 
-- You type commands at a `>` prompt
-- `parser.py` converts "go north" → `Intent.MOVE, direction="north"`
-- Game engine resolves it
+- You pick from a numbered menu of the actions available from your current state
+- Game engine resolves the chosen action
 - DM narrates the result
+- (The free-text parser - `parser.py` converting "go north" to `Intent.MOVE, direction="north"` - exists, but the terminal CLI doesn't use it; it's what the HTTP API and MCP server hand raw player text to instead)
 
 ### 2. **Autonomous AI Mode** (OllamaPlayerAgent)
 ```bash
@@ -125,14 +126,16 @@ uvicorn dungeon_crawler.api:app_factory --factory
 
 ## 🧠 The RAG System (retrieval.py)
 
-### Two Collections in Chroma:
+### One Chroma Collection, Two Kinds of Content:
 
-1. **Lore collection** (static, loaded once):
+`LoreStore` (`retrieval.py`) holds a single Chroma collection that mixes static lore with dynamic events written back during play - there's no separate collection per kind, a query just retrieves whichever is most relevant:
+
+1. **Lore** (static, loaded once):
    - `lore/world.md` → "The Sunken Outpost is an abandoned border keep..."
    - `lore/history.md` → "The garrison sealed an artifact before fleeing..."
    - `lore/npcs.md` → "Goblins are territorial scavengers..."
 
-2. **Event collection** (dynamic, grows each turn):
+2. **Events** (dynamic, grows each turn, added to the same collection):
    - Turn 0: "The adventure begins in the entrance"
    - Turn 1: "You took the rusty sword"
    - Turn 2: "You attacked the goblin and dealt 4 damage"
@@ -317,7 +320,7 @@ The whole thing is **LangGraph + Ollama + Chroma + Pydantic** glued together wit
 ## 📁 Repository Structure
 
 ```
-C:\Users\ianta\ai_dungeon_crawler\
+ai_dungeon_crawler/
 ├── src/dungeon_crawler/          # Main application source code
 ├── tests/                        # Test suite
 ├── personas/                     # Player agent configuration files
@@ -413,6 +416,7 @@ C:\Users\ianta\ai_dungeon_crawler\
 | **Async server** | Uvicorn 0.51.0+ | ASGI server for FastAPI |
 | **Tool protocol** | MCP 1.28.1+ | Model Context Protocol for tool exposure |
 | **Testing** | pytest 9.1.1+ | Test runner |
+| **Tracing** | Langfuse 4.14.2+, LangChain 1.3.14+ | Optional per-node/per-call observability (see `OBSERVABILITY.md`) |
 
 ---
 

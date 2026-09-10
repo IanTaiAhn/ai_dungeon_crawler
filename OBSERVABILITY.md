@@ -15,9 +15,9 @@ playthroughs — a trace in a self-hosted Langfuse instance showing:
   `graph.py`'s `StateGraph` (`intro`, `get_action`, `checkin`, `resolve`,
   `retrieve`, `narrate`, `remember`, `check_end`).
 - **Per-LLM-call detail** — raw prompt, raw response, latency, token usage —
-  for all three Ollama call sites: `OllamaNarrator.narrate()` (`llm.py:43`),
-  `OllamaPlayerAgent.get_action()` (`agents.py:177`), and
-  `OllamaJudge.score()` (`evaluation.py:106`).
+  for all three Ollama call sites: `OllamaNarrator.narrate()` (`llm.py:39`),
+  `OllamaPlayerAgent.get_action()` (`agents.py:213`), and
+  `OllamaJudge.score()` (`evaluation.py:99`).
 
 Everything stays local: Langfuse self-hosted, Ollama local, nothing leaves
 the machine. That matches the project's existing "no cloud LLM calls"
@@ -61,8 +61,8 @@ matters for how traces group in the Langfuse UI:
 Since server-driven play produces many short traces (one per turn) rather
 than one long one, we need a way to stitch them back together in the
 Langfuse UI. Langfuse's `session_id` is exactly this: every place that
-already threads a `thread_id` through `config = {"configurable": {"thread_id": ...}}`
-(see `sessions.py:59,64,74`, `cli.py:90`, `evaluation.py:179`) gets the same
+already builds its graph config via `trace_config(thread_id, ...)`
+(see `sessions.py:60,65,75`, `cli.py:91`, `evaluation.py:181`) gets the same
 value passed as `metadata={"langfuse_session_id": thread_id}`. In the
 Langfuse UI, that groups every trace for one game session — across turns,
 across process restarts if resumed — into a single timeline. This is a
@@ -158,7 +158,7 @@ raised into game logic. Tracing being down does not mean gameplay is down.
    persona-name eval tags were added. No `environment` tag or similar —
    add if it becomes useful.
 4. **Not yet verified against a real Langfuse instance + real Ollama**:
-   the wiring was verified with `uv run pytest -q` (fully mocked, 77
+   the wiring was verified with `uv run pytest -q` (fully mocked, all
    passing) and with a real `CallbackHandler` pointed at an unreachable
    host (confirms graceful degradation, not correct trace content). Actually
    opening the Langfuse UI and confirming node spans nest correctly under

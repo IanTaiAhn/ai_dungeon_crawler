@@ -34,4 +34,4 @@ Reference notes on the models, disk space, and minimum hardware needed to run th
 ## Other compute notes
 
 - LangGraph, Pydantic, Chroma, and FastAPI are CPU-trivial — not a sizing factor next to the LLMs.
-- Self-hosting **Langfuse** (open-source tracing, phase 6) adds its own docker-compose stack (Postgres + ClickHouse + Redis), roughly +2-3GB RAM overhead if run on the same box as the models. **LangSmith** avoids this since it's cloud-hosted.
+- Self-hosting **Langfuse** (open-source tracing, optional - see `OBSERVABILITY.md`) adds its own docker-compose stack (Postgres + ClickHouse + Redis), roughly +2-3GB RAM overhead if run on the same box as the models. **LangSmith** avoids this since it's cloud-hosted.

@@ -45,18 +45,9 @@ If your machine is CPU-only or short on RAM, swap in something smaller (`qwen2.5
 uv run dungeon-crawler
 ```
 
-You'll get the DM's opening narration, then a `>` prompt. Type free-text commands - the parser understands things like:
+You'll get the DM's opening narration, then a numbered menu of the actions available from your current state (move, attack, take/use an item you can see, talk, inspect, flee, wait, ...) - type the number to act.
 
-```
-go north / go south / go east / go west
-attack goblin
-take rusty sword
-use torch
-talk to goblin
-inspect
-flee
-wait
-```
+Free-text commands (`go north`, `attack goblin`, `take rusty sword`, `inspect`, `flee`, `wait`, ...) are understood by `parser.py`, but that path is only exercised by the HTTP API and MCP server (step 7-8 below), not the terminal CLI - there, you pick from the menu.
 
 **Save/resume**: every turn is checkpointed to `dungeon_crawler.sqlite` (a real save, not just in-memory) under a "thread" name. Just re-run the same command to resume where you left off:
 
