@@ -57,13 +57,13 @@ predetermined length?
 
 - **`get_action_node`** (`src/dungeon_crawler/graph.py:122`) delegates to
   whichever `ActionProvider` is driving the session. In autonomous mode,
-  that's `OllamaPlayerAgent` (`agents.py:176`) - each turn it looks at the
+  that's `OllamaPlayerAgent` (`agents.py:201`) - each turn it looks at the
   *current* `GameState` (HP, inventory, retrieved lore, spell charges) and
   freely picks one of the `Intent` values (`MOVE`, `ATTACK`, `CAST_SPELL`,
   `TAKE_ITEM`, ...). Nothing in the code predetermines which intent comes
   next; that choice is made by the model, per turn, from the environment.
-- The loop itself has **no fixed length**. `check_end_node` (`graph.py:302`)
-  and the conditional edge `route_after_check` (`graph.py:307`) send control
+- The loop itself has **no fixed length**. `check_end_node` (`graph.py:354`)
+  and the conditional edge `route_after_check` (`graph.py:359`) send control
   back to `get_action` indefinitely until `state.game_over` - win, lose, or
   turn limit. You can't draw "the" execution path ahead of time; it depends
   on what the agent does.
@@ -83,7 +83,7 @@ predetermined length?
   decide what to do next. Routing is a step inside the loop, not the loop's
   shape.
 - **Prompt chaining** (#1) - `retrieve_node → narrate_node`
-  (`graph.py:287-295`) is a fixed, always-both-steps, always-same-order
+  (`graph.py:339-342`) is a fixed, always-both-steps, always-same-order
   chain: fetch lore, then feed it to the narrator LLM. No branching, no
   variable length - a textbook two-step chain living inside one turn of the
   bigger loop.

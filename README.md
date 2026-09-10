@@ -34,7 +34,7 @@ ollama pull nomic-embed-text  # lore embeddings
 uv run dungeon-crawler
 ```
 
-You'll get the DM's opening narration, then a `>` prompt. Try `go north`, `attack goblin`, `take rusty sword`, `inspect`, or `flee`.
+You'll get the DM's opening narration, then a numbered menu of the actions available from your current state - just type the number to act.
 
 Want to watch an AI play instead?
 

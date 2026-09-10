@@ -41,13 +41,13 @@ Each checkpoint contains:
 
 ### The Code Flow
 
-#### 1. **When you start the game** (cli.py lines 87-93):
+#### 1. **When you start the game** (cli.py lines 88-94):
 
 ```python
 with closing(sqlite3.connect(args.db, check_same_thread=False)) as conn:
     checkpointer = SqliteSaver(conn, serde=checkpoint_serde())
     graph = build_graph(narrator, action_provider, checkpointer, lore_store, checkin_every=checkin_every)
-    config = {"configurable": {"thread_id": args.thread_id}}
+    config = trace_config(args.thread_id)  # sets configurable.thread_id (plus optional tracing metadata)
 
     existing = graph.get_state(config)
     initial = None if existing.values else new_game_state(persona=persona)
